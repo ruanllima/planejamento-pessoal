@@ -1,15 +1,66 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#17191f" />
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("ritmo.theme.v1")==="light"?"light":"dark";document.documentElement.style.colorScheme=document.documentElement.dataset.theme}catch{document.documentElement.dataset.theme="dark"}</script>
-    <meta name="description" content="Planeje sua rotina com clareza e flexibilidade." />
-    <title>Ritmo — Planejamento pessoal</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#15171c">
+  <meta name="description" content="Planeje sua semana, acompanhe a realidade e reorganize seu tempo.">
+  <title>Ritmo — seu tempo, com intenção</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="main.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <a class="brand" href="#" data-view="week" aria-label="Ritmo, início">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span>ritmo</span>
+      </a>
+      <div class="sidebar-label">ESPAÇO DE TRABALHO</div>
+      <nav class="primary-nav">
+        <button class="nav-item is-active" data-view="week"><span class="nav-icon">▦</span><span>Minha semana</span></button>
+        <button class="nav-item" data-view="month"><span class="nav-icon">▤</span><span>Calendário</span></button>
+        <button class="nav-item" data-view="categories"><span class="nav-icon">◉</span><span>Categorias</span></button>
+      </nav>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-label side-categories-label">SUAS CATEGORIAS <button class="icon-button tiny" data-action="new-category" aria-label="Adicionar categoria">+</button></div>
+      <div id="sidebar-categories" class="sidebar-categories"></div>
+      <div class="sidebar-bottom">
+        <div class="local-status"><span class="status-dot"></span><span>Salvo neste dispositivo</span></div>
+        <button class="nav-item" data-action="backup"><span class="nav-icon">↥</span><span>Backup e dados</span></button>
+        <button class="nav-item" data-action="theme"><span class="nav-icon">◐</span><span id="theme-label">Tema escuro</span></button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <div class="mobile-brand"><span class="brand-mark"><span></span><span></span><span></span></span><strong>ritmo</strong></div>
+        <div class="breadcrumb"><span>Meu espaço</span><b>/</b><strong id="breadcrumb-current">Minha semana</strong></div>
+        <div class="topbar-actions">
+          <span class="today-label" id="today-label"></span>
+          <button class="icon-button" data-action="backup" aria-label="Exportar backup" title="Exportar backup">↥</button>
+          <button class="icon-button" data-action="theme" aria-label="Alternar tema" title="Alternar tema">◐</button>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section id="week-view" class="view-panel"></section>
+        <section id="month-view" class="view-panel" hidden></section>
+        <section id="categories-view" class="view-panel" hidden></section>
+      </div>
+    </main>
+  </div>
+
+  <nav class="mobile-nav" aria-label="Navegação inferior">
+    <button class="mobile-nav-item is-active" data-view="week"><span>▦</span><small>Semana</small></button>
+    <button class="mobile-nav-item" data-view="month"><span>▤</span><small>Calendário</small></button>
+    <button class="mobile-nav-item" data-view="categories"><span>◉</span><small>Categorias</small></button>
+  </nav>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="polite" aria-atomic="true"></div>
+</body>
 </html>
