@@ -28,6 +28,31 @@
 
   function emptyData() { return { version:2, categories:[], occurrences:[], changes:[] }; }
 
+  function createDefaultCategories() {
+const defaults = [
+  { name: "Igreja", color: "#A58FC9" },
+  { name: "Trabalho", color: "#78AA98" },
+  { name: "Estudo", color: "#8195D4" },
+  { name: "Rafa", color: "#C47F9A" },
+  { name: "Lazer", color: "#C6A56E" },
+  { name: "Livre", color: "#70A8B9" }
+];
+
+  return defaults.map((item, index) => ({
+    id: uid(),
+    name: item.name,
+    color: item.color,
+    priority: index + 1,
+    goals: {
+      morning: 0,
+      afternoon: 0,
+      night: 0
+    },
+    active: true,
+    defaultProtected: false
+  }));
+}
+
   function normalizeLegacy(raw) {
     const data = emptyData();
     if (!raw || typeof raw !== "object" || !Array.isArray(raw.categories) || !Array.isArray(raw.blocks)) return data;
@@ -104,6 +129,14 @@
     loadError:"", previousFocus:null
   };
   state.data = loadData();
+
+if (
+  state.data.categories.length === 0 &&
+  state.data.occurrences.length === 0
+) {
+  state.data.categories = createDefaultCategories();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+}
   state.theme = localStorage.getItem(THEME_KEY)==="light" ? "light" : "dark";
 
   function persist() {
