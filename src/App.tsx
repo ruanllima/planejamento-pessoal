@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings2, Clock3, Check, CircleCheck, Download, LayoutGrid, CalendarRange, X, Trash2, Tag, ArrowUpRight } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Plus, Settings2, Clock3, Check, CircleCheck, Download, LayoutGrid, CalendarRange, X, Trash2, Tag, ArrowUpRight, Sun, Moon } from 'lucide-react'
 import type { Category, PlannerData, Priority, TimeBlock, BlockStatus } from './domain/types'
 import { addDays, dateKey, formatDuration, formatRange, monthGrid, monthLabel, weekDays } from './domain/date'
 import { blockDuration, summarize, validateBlock } from './domain/planner'
@@ -8,9 +8,20 @@ import { exportBackup, loadData, saveData } from './data/storage'
 const priorityLabel: Record<Priority,string> = {critical:'Crítica', high:'Alta', medium:'Média', flexible:'Flexível'}
 const weekNames = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
 const uid = () => crypto.randomUUID()
+type Theme = 'dark' | 'light'
+const THEME_KEY = 'ritmo.theme.v1'
+function loadTheme(): Theme {
+  try {
+    const saved = localStorage.getItem(THEME_KEY)
+    return saved === 'light' || saved === 'dark' ? saved : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
 
 export default function App() {
   const [data,setData] = useState<PlannerData>(() => loadData())
+  const [theme,setTheme] = useState<Theme>(() => loadTheme())
   const [anchor,setAnchor] = useState(new Date())
   const [view,setView] = useState<'week'|'month'>('week')
   const [modal,setModal] = useState<'block'|'category'|null>(null)
@@ -20,6 +31,13 @@ export default function App() {
   const [showCategories,setShowCategories] = useState(false)
 
   useEffect(() => { try { saveData(data) } catch { setToast('Não foi possível salvar. Exporte uma cópia dos seus dados.') } },[data])
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    const themeColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    if (themeColor) themeColor.content = theme === 'dark' ? '#17191f' : '#f7f8fa'
+    try { localStorage.setItem(THEME_KEY, theme) } catch { /* A preferência continua aplicada nesta sessão. */ }
+  }, [theme])
   useEffect(() => { if (!toast) return; const t=setTimeout(()=>setToast(''),3200); return ()=>clearTimeout(t) },[toast])
 
   const days = useMemo(()=>weekDays(anchor),[anchor])
@@ -71,7 +89,7 @@ export default function App() {
     <main className="main">
       <header className="topbar">
         <div className="breadcrumb">Planejamento <span>/</span> <strong>{view==='week'?'Minha semana':'Calendário'}</strong></div>
-        <div className="top-actions"><span className="today-label">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</span><button className="icon-button" title="Exportar backup" onClick={()=>exportBackup(data)}><Download size={17}/></button></div>
+        <div className="top-actions"><span className="today-label">{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</span><button className="icon-button theme-toggle" title={theme==='dark'?'Ativar tema claro':'Ativar tema escuro'} aria-label={theme==='dark'?'Ativar tema claro':'Ativar tema escuro'} onClick={()=>setTheme(current=>current==='dark'?'light':'dark')}><span className="theme-toggle-label">{theme==='dark'?'Claro':'Escuro'}</span>{theme==='dark'?<Sun size={17}/>:<Moon size={17}/>}</button><button className="icon-button" title="Exportar backup" aria-label="Exportar backup" onClick={()=>exportBackup(data)}><Download size={17}/></button></div>
       </header>
 
       <section className="page-content">

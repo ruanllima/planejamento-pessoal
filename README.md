@@ -20,6 +20,7 @@ npm run build
 ## O que já está implementado
 - Aplicação React + TypeScript + Vite.
 - Interface responsiva com foco mobile-first.
+- Tema escuro como padrão, com alternância manual para o tema claro. A preferência fica salva no navegador e é aplicada antes da renderização para evitar clarão inicial.
 - Navegação entre semanas e meses.
 - Calendário mensal dinâmico (42 células, datas reais e anos bissextos).
 - Criação, edição e exclusão de compromissos.
