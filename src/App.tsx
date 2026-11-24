@@ -56,9 +56,6 @@ export default function App() {
     else setData(d=>({...d,blocks:[...d.blocks,{...values,id:uid(),createdAt:now,updatedAt:now}]}))
     setModal(null);setEditing(null);setToast(editing?'Compromisso atualizado':'Compromisso adicionado')
   }
-  function updateStatus(block:TimeBlock,status:BlockStatus) {
-    setData(d=>({...d,blocks:d.blocks.map(b=>b.id===block.id?{...b,status,updatedAt:new Date().toISOString()}:b)}))
-  }
   function saveCategory(name:string,color:string,priority:Priority,goal:number,protectedItem:boolean) {
     if(!name.trim()){setToast('Informe o nome da categoria.');return}
     setData(d=>({...d,categories:[...d.categories,{id:uid(),name:name.trim(),color,priority,weeklyGoalMinutes:goal,protected:protectedItem,active:true}]}))
