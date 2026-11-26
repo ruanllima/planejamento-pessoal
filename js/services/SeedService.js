@@ -27,27 +27,7 @@ export class SeedService {
       allowed_shifts: ['morning', 'afternoon', 'night'],
       priority_order: 0,
       is_relocatable: false,
-      is_sacrificeable: true
-    });
-
-    const catLazer = createCategory({
-      name: 'Lazer',
-      color: '#06B6D4',
-      weekly_goal: null,
-      allowed_shifts: ['afternoon', 'night'],
-      priority_order: 1,
-      is_relocatable: false,
-      is_sacrificeable: false
-    });
-
-    const catRafa = createCategory({
-      name: 'Rafa',
-      color: '#EC4899',
-      weekly_goal: null,
-      allowed_shifts: ['afternoon', 'night'],
-      priority_order: 2,
-      is_relocatable: false,
-      is_sacrificeable: false
+      in_global_list: true
     });
 
     const catEstudo = createCategory({
@@ -55,9 +35,9 @@ export class SeedService {
       color: '#8B5CF6',
       weekly_goal: 4,
       allowed_shifts: ['morning', 'afternoon', 'night'],
-      priority_order: 3,
+      priority_order: 1,
       is_relocatable: true,
-      is_sacrificeable: true
+      in_global_list: true
     });
 
     const catTrabalho = createCategory({
@@ -65,9 +45,29 @@ export class SeedService {
       color: '#2563EB',
       weekly_goal: 5,
       allowed_shifts: ['afternoon', 'night'],
-      priority_order: 4,
+      priority_order: 2,
       is_relocatable: true,
-      is_sacrificeable: true
+      in_global_list: true
+    });
+
+    const catLazer = createCategory({
+      name: 'Lazer',
+      color: '#06B6D4',
+      weekly_goal: null,
+      allowed_shifts: ['afternoon', 'night'],
+      priority_order: 3,
+      is_relocatable: false,
+      in_global_list: false
+    });
+
+    const catRafa = createCategory({
+      name: 'Rafa',
+      color: '#EC4899',
+      weekly_goal: null,
+      allowed_shifts: ['afternoon', 'night'],
+      priority_order: 4,
+      is_relocatable: false,
+      in_global_list: false
     });
 
     const catIgreja = createCategory({
@@ -77,10 +77,10 @@ export class SeedService {
       allowed_shifts: ['morning', 'afternoon', 'night'],
       priority_order: 5,
       is_relocatable: false,
-      is_sacrificeable: false
+      in_global_list: false
     });
 
-    const categories = [catLivre, catLazer, catRafa, catEstudo, catTrabalho, catIgreja];
+    const categories = [catLivre, catEstudo, catTrabalho, catLazer, catRafa, catIgreja];
     for (const c of categories) {
       await this.repo.saveCategory(c);
     }

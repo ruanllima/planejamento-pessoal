@@ -79,7 +79,13 @@ _registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('./sw.js', { updateViaCache: 'none' })
+<<<<<<< HEAD
+        .then((reg) => {
+          reg.update();
+        })
+=======
         .then((reg) => reg.update())
+>>>>>>> 48a3134 (fix(agenda,engine): enforce single event per shift, protect fixed church slots, and add undoable delete confirmations)
         .catch((err) => {
           console.warn('Service Worker não registrado:', err);
         });

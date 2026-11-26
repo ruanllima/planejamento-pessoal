@@ -129,7 +129,7 @@ export class AgendaView {
       return `
         <div class="header-coadjuvant-group" aria-live="polite">
           <span class="header-coadjuvant-card ${startIsToday ? 'is-today' : ''}">${getWeekdayLabel(startStr)} ${formatDayMonth(startStr)}</span>
-          <span class="header-coadjuvant-sep">-</span>
+          <span class="header-coadjuvant-sep">a</span>
           <span class="header-coadjuvant-card ${endIsToday ? 'is-today' : ''}">${getWeekdayLabel(endStr)} ${formatDayMonth(endStr)}</span>
         </div>
       `;
@@ -412,7 +412,7 @@ export class AgendaView {
         <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
           Deseja realmente excluir o compromisso recorrente <strong>${this._escape(cleanTitle)}</strong>?
         </p>
-        <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+        <div class="modal-footer-actions" style="flex-direction:column;">
           <button type="button" class="btn btn-danger" id="del-rec-one">Excluir apenas este</button>
           <button type="button" class="btn btn-danger" id="del-rec-all">Excluir todos</button>
           <button type="button" class="btn btn-secondary" id="del-rec-cancel">Cancelar</button>
@@ -462,7 +462,7 @@ export class AgendaView {
         <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
           Deseja realmente excluir <strong>${this._escape(cleanTitle)}</strong>? Esta ação deixará o turno livre.
         </p>
-        <div style="display:flex; gap:8px; margin-top:6px;">
+        <div class="modal-footer-actions">
           <button type="button" class="btn btn-secondary" style="flex:1;" id="del-cancel">Cancelar</button>
           <button type="button" class="btn btn-danger" style="flex:1;" id="del-confirm">Excluir</button>
         </div>
@@ -589,20 +589,14 @@ export class AgendaView {
       ${
         isEdit
           ? `
-      <div class="form-grid form-grid-2">
-        <div class="field-group">
-          <label class="field-label" for="ev-date">Data</label>
-          <input class="input-control" id="ev-date" type="date" value="${eventDraft.date || this.anchorDate}" />
-        </div>
-        <div class="field-group">
-          <label class="field-label" for="ev-shift">Turno</label>
-          <select class="input-control" id="ev-shift">
-            ${SHIFT_ORDER.map((sId) => {
-              const s = SHIFTS[sId.toUpperCase()];
-              return `<option value="${sId}" ${sId === eventDraft.shift ? 'selected' : ''}>${s.label}</option>`;
-            }).join('')}
-          </select>
-        </div>
+      <div class="field-group">
+        <label class="field-label" for="ev-shift">Turno</label>
+        <select class="input-control" id="ev-shift">
+          ${SHIFT_ORDER.map((sId) => {
+            const s = SHIFTS[sId.toUpperCase()];
+            return `<option value="${sId}" ${sId === eventDraft.shift ? 'selected' : ''}>${s.label}</option>`;
+          }).join('')}
+        </select>
       </div>`
           : ''
       }
@@ -623,7 +617,9 @@ export class AgendaView {
           : ''
       }
 
-      <button type="submit" class="btn btn-primary" style="width:100%; margin-top:4px;">Salvar</button>
+      <div class="modal-footer-actions">
+        <button type="submit" class="btn btn-primary" style="width:100%;">Salvar</button>
+      </div>
     `;
 
     const titleInput = form.querySelector('#ev-title');
@@ -649,7 +645,7 @@ export class AgendaView {
       e.preventDefault();
       const chosenCat = categories.find((c) => c.id === selectedCatId);
       const title = titleInput.value.trim() || (chosenCat ? chosenCat.name : 'Compromisso');
-      const date = isEdit ? form.querySelector('#ev-date').value : eventDraft.date || this.anchorDate;
+      const date = eventDraft.date || this.anchorDate;
       let shift = isEdit ? form.querySelector('#ev-shift').value : eventDraft.shift || 'morning';
       const start_time = is24h ? form.querySelector('#ev-start').value : null;
       const end_time = is24h ? form.querySelector('#ev-end').value : null;
@@ -658,7 +654,6 @@ export class AgendaView {
         shift = inferShiftFromTime(start_time);
       }
 
-      // Verifica se há um compromisso ativo diferente ocupando o turno destino (deslocamento manual)
       const allEvents = await this.repo.getEvents();
       const displacedEvent = allEvents.find(
         (existing) =>

@@ -1023,3 +1023,79 @@
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
 }
+
+
+html.modal-open,
+body.modal-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
+.app-main.modal-open {
+  overflow: hidden !important;
+}
+
+.modal-backdrop {
+  overscroll-behavior: contain;
+}
+
+.modal-sheet {
+  overscroll-behavior: contain;
+}
+
+.modal-footer-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--space-5);
+  padding-top: var(--space-2);
+}
+
+.number-stepper {
+  display: flex;
+  align-items: stretch;
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  height: 42px;
+}
+
+.stepper-btn {
+  width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background-color: var(--bg-surface);
+  transition: background-color var(--transition-fast);
+  user-select: none;
+}
+
+.stepper-btn:hover {
+  background-color: var(--bg-hover);
+}
+
+.stepper-btn:active {
+  background-color: var(--border-strong);
+}
+
+.stepper-input {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0 8px;
+}
+
+.stepper-input:focus {
+  outline: none;
+  background-color: var(--bg-surface);
+}

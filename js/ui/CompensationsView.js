@@ -18,6 +18,7 @@ export class CompensationsView {
     ]);
 
     const activeLogs = logs.filter((l) => l.status !== 'reverted');
+    const hasPendingLogs = activeLogs.some((l) => l.status === 'pending_review');
 
     this.container.innerHTML = `
       <header class="view-header">
@@ -28,32 +29,53 @@ export class CompensationsView {
       </header>
 
       <h2 class="field-label" style="margin-bottom:10px;">Saldo Semanal de Turnos</h2>
-      <div class="quota-grid">
-        ${quotas
-          .map((q) => {
-            const pct = q.goal ? Math.min(100, Math.round((q.scheduled / q.goal) * 100)) : 100;
-            const goalLabel = q.goal ? `${q.scheduled}/${q.goal} turnos` : `${q.scheduled} agendados`;
-            return `
-              <div class="quota-card">
-                <div class="quota-header">
-                  <span style="color:${q.category.color};">${this._escape(q.category.name)}</span>
-                  <span>${goalLabel}</span>
-                </div>
-                <div class="quota-bar-track">
-                  <div class="quota-bar-fill" style="width:${pct}%; background-color:${q.category.color};"></div>
-                </div>
-                <div style="font-size:0.72rem; color:var(--text-secondary); display:flex; justify-content:space-between;">
-                  <span>Concluídos: ${q.completed}</span>
-                  <span>Falhas: ${q.failed}</span>
-                </div>
-              </div>
-            `;
-          })
-          .join('')}
-      </div>
+      ${
+        quotas.length > 0
+          ? `<div class="quota-grid">
+              ${quotas
+                .map((q) => {
+                  const pct = Math.min(100, Math.round((q.scheduled / q.goal) * 100));
+                  const goalLabel = `${q.scheduled}/${q.goal} turnos`;
+                  return `
+                    <div class="quota-card">
+                      <div class="quota-header">
+                        <span style="color:${q.category.color};">${this._escape(q.category.name)}</span>
+                        <span>${goalLabel}</span>
+                      </div>
+                      <div class="quota-bar-track">
+                        <div class="quota-bar-fill" style="width:${pct}%; background-color:${q.category.color};"></div>
+                      </div>
+                      <div style="font-size:0.72rem; color:var(--text-secondary); display:flex; justify-content:space-between;">
+                        <span>Concluídos: ${q.completed}</span>
+                        <span>Falhas: ${q.failed}</span>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('')}
+            </div>`
+          : `<div class="panel-card" style="color:var(--text-secondary); font-size:0.84rem; margin-bottom:24px;">
+              Nenhuma categoria possui meta semanal definida no momento. Configure uma meta em Ajustes para acompanhá-la aqui.
+            </div>`
+      }
 
       <h2 class="field-label" style="margin-bottom:10px;">Fila de Revisão e Histórico (${activeLogs.length})</h2>
       <div class="log-list" id="comp-log-list"></div>
+
+      ${
+        activeLogs.length > 0
+          ? `
+        <div class="panel-card" style="margin-top:20px; display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end;">
+          ${
+            hasPendingLogs
+              ? `<button type="button" class="btn btn-success" id="btn-confirm-all">Confirmar todos</button>`
+              : ''
+          }
+          <button type="button" class="btn btn-danger" id="btn-undo-all">Desfazer todos</button>
+        </div>
+      `
+          : ''
+      }
     `;
 
     const listEl = this.container.querySelector('#comp-log-list');
@@ -64,6 +86,22 @@ export class CompensationsView {
         </div>
       `;
       return;
+    }
+
+    const confirmAllBtn = this.container.querySelector('#btn-confirm-all');
+    if (confirmAllBtn) {
+      confirmAllBtn.addEventListener('click', async () => {
+        const count = await this.engine.confirmAllPending();
+        this.showToast(`${count} compensação(ões) confirmada(s).`);
+        await this.onStateChange();
+      });
+    }
+
+    const undoAllBtn = this.container.querySelector('#btn-undo-all');
+    if (undoAllBtn) {
+      undoAllBtn.addEventListener('click', () => {
+        this._confirmUndoAllModal(activeLogs.length);
+      });
     }
 
     for (const log of activeLogs) {
@@ -119,6 +157,30 @@ export class CompensationsView {
 
       listEl.appendChild(card);
     }
+  }
+
+  _confirmUndoAllModal(totalCount) {
+    const wrap = document.createElement('div');
+    wrap.className = 'form-grid';
+    wrap.innerHTML = `
+      <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+        Deseja desfazer todas as <strong>${totalCount}</strong> compensação(ões) ativa(s) e restaurar os turnos originais?
+      </p>
+      <div class="modal-footer-actions">
+        <button type="button" class="btn btn-secondary" style="flex:1;" id="undo-all-cancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" style="flex:1;" id="undo-all-confirm">Desfazer todos</button>
+      </div>
+    `;
+
+    wrap.querySelector('#undo-all-cancel').addEventListener('click', () => this.modal.close());
+    wrap.querySelector('#undo-all-confirm').addEventListener('click', async () => {
+      const revertedCount = await this.engine.rollbackAllActive();
+      this.modal.close();
+      this.showToast(`${revertedCount} compensação(ões) desfeita(s).`);
+      await this.onStateChange();
+    });
+
+    this.modal.open('Desfazer todas as compensações', wrap);
   }
 
   _openManualReallocateModal(log, alternatives) {

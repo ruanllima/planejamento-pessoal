@@ -15,6 +15,9 @@ export class SettingsView {
       this.repo.getSettings()
     ]);
 
+    const globalCategories = categories.filter((c) => Boolean(c.in_global_list));
+    const availableForGlobal = categories.filter((c) => !c.in_global_list);
+
     this.container.innerHTML = `
       <header class="view-header">
         <div>
@@ -46,16 +49,23 @@ export class SettingsView {
       </div>
 
       <div class="panel-card">
-        <h2 class="field-label" style="margin-bottom:4px;">Lista Global de Busca e Prioridade</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;">
+          <h2 class="field-label" style="margin:0;">Lista Global de Busca e Prioridade</h2>
+          ${
+            availableForGlobal.length > 0
+              ? `<button type="button" class="btn-icon" id="btn-add-to-global" title="Adicionar categoria à lista global" aria-label="Adicionar categoria à lista global">+</button>`
+              : ''
+          }
+        </div>
         <p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:12px;">
-          Ordem de busca ao realocar (do menor peso para o maior). A busca começa por turnos vazios e para ao atingir a própria categoria.
+          Apenas categorias nesta lista podem ser substituídas ao realocar (do menor peso para o maior). Categorias fora da lista não são sacrificáveis.
         </p>
         <div class="priority-list" id="global-priority-list">
           <div class="priority-item" style="opacity:0.75;">
             <span><strong>1.</strong> Turno vazio (none)</span>
             <span style="font-size:0.72rem; color:var(--text-muted);">Primeiro alvo</span>
           </div>
-          ${categories
+          ${globalCategories
             .map(
               (cat, idx) => `
               <div class="priority-item">
@@ -66,7 +76,8 @@ export class SettingsView {
                 </span>
                 <div class="priority-controls">
                   <button type="button" class="btn-icon btn-global-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} aria-label="Diminuir peso">↑</button>
-                  <button type="button" class="btn-icon btn-global-down" data-idx="${idx}" ${idx === categories.length - 1 ? 'disabled' : ''} aria-label="Aumentar peso">↓</button>
+                  <button type="button" class="btn-icon btn-global-down" data-idx="${idx}" ${idx === globalCategories.length - 1 ? 'disabled' : ''} aria-label="Aumentar peso">↓</button>
+                  <button type="button" class="btn-icon btn-global-remove" data-cat-id="${cat.id}" title="Remover da lista global" aria-label="Remover da lista global">×</button>
                 </div>
               </div>
             `
@@ -91,13 +102,12 @@ export class SettingsView {
       </div>
     `;
 
-    this._bindGlobalControls(categories);
+    this._bindGlobalControls(categories, globalCategories, availableForGlobal);
 
     const catListEl = this.container.querySelector('#cat-list');
     for (const cat of categories) {
       const allowedStr = cat.allowed_shifts.map((s) => SHIFTS[s.toUpperCase()].label).join(', ');
       const relocatableStr = cat.is_relocatable ? 'Sim' : 'Não';
-      const sacrificeableStr = cat.is_sacrificeable ? 'Sim' : 'Não';
 
       const card = document.createElement('div');
       card.className = 'cat-struct-card';
@@ -117,10 +127,9 @@ export class SettingsView {
             <span class="cat-struct-val">${allowedStr}</span>
           </div>
           <div class="cat-struct-row">
-            <span class="cat-struct-key">Regras de realocação</span>
+            <span class="cat-struct-key">Realocação automática</span>
             <div class="cat-rule-pills" style="margin-top:2px;">
               <span class="cat-rule-pill">Realocável: ${relocatableStr}</span>
-              <span class="cat-rule-pill">Sacrificável: ${sacrificeableStr}</span>
             </div>
           </div>
         </div>
@@ -134,7 +143,7 @@ export class SettingsView {
     }
   }
 
-  _bindGlobalControls(categories) {
+  _bindGlobalControls(categories, globalCategories, availableForGlobal) {
     this.container.querySelectorAll('[data-tmode]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         await this.repo.saveSettings({ time_mode: btn.dataset.tmode });
@@ -151,13 +160,24 @@ export class SettingsView {
       });
     });
 
+    const addGlobalBtn = this.container.querySelector('#btn-add-to-global');
+    if (addGlobalBtn) {
+      addGlobalBtn.addEventListener('click', () => {
+        this._openAddToGlobalModal(categories, availableForGlobal);
+      });
+    }
+
     this.container.querySelectorAll('.btn-global-up').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const idx = Number(btn.dataset.idx);
-        const reordered = [...categories];
-        [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
-        const updated = reordered.map((c, i) => ({ ...c, priority_order: i }));
-        await this.repo.saveCategoriesBulk(updated);
+        const reorderedGlobal = [...globalCategories];
+        [reorderedGlobal[idx - 1], reorderedGlobal[idx]] = [reorderedGlobal[idx], reorderedGlobal[idx - 1]];
+        const nonGlobal = categories.filter((c) => !c.in_global_list);
+        const merged = [...reorderedGlobal, ...nonGlobal].map((c, i) => ({
+          ...c,
+          priority_order: i
+        }));
+        await this.repo.saveCategoriesBulk(merged);
         await this.onStateChange();
       });
     });
@@ -165,10 +185,26 @@ export class SettingsView {
     this.container.querySelectorAll('.btn-global-down').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const idx = Number(btn.dataset.idx);
-        const reordered = [...categories];
-        [reordered[idx + 1], reordered[idx]] = [reordered[idx], reordered[idx + 1]];
-        const updated = reordered.map((c, i) => ({ ...c, priority_order: i }));
+        const reorderedGlobal = [...globalCategories];
+        [reorderedGlobal[idx + 1], reorderedGlobal[idx]] = [reorderedGlobal[idx], reorderedGlobal[idx + 1]];
+        const nonGlobal = categories.filter((c) => !c.in_global_list);
+        const merged = [...reorderedGlobal, ...nonGlobal].map((c, i) => ({
+          ...c,
+          priority_order: i
+        }));
+        await this.repo.saveCategoriesBulk(merged);
+        await this.onStateChange();
+      });
+    });
+
+    this.container.querySelectorAll('.btn-global-remove').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const catId = btn.dataset.catId;
+        const updated = categories.map((c) =>
+          c.id === catId ? { ...c, in_global_list: false } : c
+        );
         await this.repo.saveCategoriesBulk(updated);
+        this.showToast('Removida da lista global.');
         await this.onStateChange();
       });
     });
@@ -208,7 +244,7 @@ export class SettingsView {
         <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
           Tem certeza que deseja limpar <strong>todos os compromissos, categorias, recorrências e histórico</strong>?
         </p>
-        <div style="display:flex; gap:8px; margin-top:6px;">
+        <div class="modal-footer-actions">
           <button type="button" class="btn btn-secondary" style="flex:1;" id="clear-cancel">Cancelar</button>
           <button type="button" class="btn btn-danger" style="flex:1;" id="clear-confirm">Limpar Tudo</button>
         </div>
@@ -232,6 +268,56 @@ export class SettingsView {
     });
   }
 
+  _openAddToGlobalModal(allCategories, availableForGlobal) {
+    const wrap = document.createElement('div');
+    wrap.className = 'form-grid';
+    wrap.innerHTML = `
+      <p style="font-size:0.84rem; color:var(--text-secondary);">
+        Selecione uma categoria para incluí-la na Lista Global (permitindo que seja substituída quando necessário):
+      </p>
+      <div class="priority-list">
+        ${availableForGlobal
+          .map(
+            (cat) => `
+            <button type="button" class="priority-item" data-pick-id="${cat.id}" style="width:100%; text-align:left; cursor:pointer;">
+              <span style="display:inline-flex; align-items:center; gap:8px;">
+                <span class="cat-dot" style="--cat-color:${cat.color};"></span>
+                <span>${this._escape(cat.name)}</span>
+              </span>
+              <span style="font-size:0.75rem; color:var(--text-muted);">+ Adicionar</span>
+            </button>
+          `
+          )
+          .join('')}
+      </div>
+    `;
+
+    wrap.querySelectorAll('[data-pick-id]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const pickedId = btn.dataset.pickId;
+        const globalList = allCategories.filter((c) => c.in_global_list);
+        const pickedCat = allCategories.find((c) => c.id === pickedId);
+        if (!pickedCat) return;
+
+        const newGlobal = [...globalList, { ...pickedCat, in_global_list: true }];
+        const remainingNonGlobal = allCategories.filter(
+          (c) => !c.in_global_list && c.id !== pickedId
+        );
+        const merged = [...newGlobal, ...remainingNonGlobal].map((c, idx) => ({
+          ...c,
+          priority_order: idx
+        }));
+
+        await this.repo.saveCategoriesBulk(merged);
+        this.modal.close();
+        this.showToast(`"${pickedCat.name}" adicionada à lista global.`);
+        await this.onStateChange();
+      });
+    });
+
+    this.modal.open('Adicionar à Lista Global', wrap);
+  }
+
   _openCategoryModal(catDraft, allCategories) {
     const isEdit = Boolean(catDraft);
     const draft =
@@ -241,8 +327,10 @@ export class SettingsView {
         color: '#3B82F6',
         priority_order: allCategories.length,
         is_relocatable: true,
-        is_sacrificeable: true
+        in_global_list: false
       });
+
+    const initialGoal = draft.weekly_goal ? Number(draft.weekly_goal) : 0;
 
     const form = document.createElement('form');
     form.className = 'form-grid';
@@ -259,24 +347,30 @@ export class SettingsView {
         </div>
       </div>
 
-      <div class="field-group">
-        <label class="field-label" for="cat-goal">Meta Semanal de Turnos (Opcional)</label>
-        <input class="input-control" id="cat-goal" type="number" min="1" max="21" value="${draft.weekly_goal || ''}" placeholder="Sem meta" />
-      </div>
-
       <div class="form-grid form-grid-2">
+        <div class="field-group">
+          <label class="field-label" for="cat-goal">Meta Semanal de Turnos</label>
+          <div class="number-stepper">
+            <button type="button" class="stepper-btn" id="goal-dec" aria-label="Diminuir meta">−</button>
+            <input
+              class="stepper-input"
+              id="cat-goal"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              value="${initialGoal}"
+              aria-label="Meta semanal de turnos"
+            />
+            <button type="button" class="stepper-btn" id="goal-inc" aria-label="Aumentar meta">+</button>
+          </div>
+          <span style="font-size:0.72rem; color:var(--text-muted);">0 = sem meta semanal</span>
+        </div>
+
         <div class="field-group">
           <label class="field-label" for="cat-reloc">Realocável automaticamente</label>
           <select class="input-control" id="cat-reloc">
             <option value="true" ${draft.is_relocatable ? 'selected' : ''}>Sim</option>
             <option value="false" ${!draft.is_relocatable ? 'selected' : ''}>Não</option>
-          </select>
-        </div>
-        <div class="field-group">
-          <label class="field-label" for="cat-sac">Sacrificável automaticamente</label>
-          <select class="input-control" id="cat-sac">
-            <option value="true" ${draft.is_sacrificeable ? 'selected' : ''}>Sim</option>
-            <option value="false" ${!draft.is_sacrificeable ? 'selected' : ''}>Não</option>
           </select>
         </div>
       </div>
@@ -292,11 +386,39 @@ export class SettingsView {
         </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-top:8px;">
-        <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Categoria</button>
+      <div class="modal-footer-actions">
+        <button type="submit" class="btn btn-primary" style="flex:1;">Salvar</button>
         ${isEdit ? `<button type="button" class="btn btn-danger" id="btn-del-cat">Excluir</button>` : ''}
       </div>
     `;
+
+    const goalInput = form.querySelector('#cat-goal');
+    const clampGoal = (n) => Math.max(0, Math.min(21, n));
+
+    goalInput.addEventListener('input', () => {
+      const digitsOnly = goalInput.value.replace(/[^0-9]/g, '');
+      if (digitsOnly === '') {
+        goalInput.value = '';
+        return;
+      }
+      goalInput.value = String(clampGoal(parseInt(digitsOnly, 10)));
+    });
+
+    goalInput.addEventListener('blur', () => {
+      if (goalInput.value.trim() === '') {
+        goalInput.value = '0';
+      }
+    });
+
+    form.querySelector('#goal-dec').addEventListener('click', () => {
+      const cur = parseInt(goalInput.value || '0', 10) || 0;
+      goalInput.value = String(clampGoal(cur - 1));
+    });
+
+    form.querySelector('#goal-inc').addEventListener('click', () => {
+      const cur = parseInt(goalInput.value || '0', 10) || 0;
+      goalInput.value = String(clampGoal(cur + 1));
+    });
 
     form.querySelectorAll('#cat-shifts .pill-toggle').forEach((p) =>
       p.addEventListener('click', () => p.classList.toggle('selected'))
@@ -312,13 +434,16 @@ export class SettingsView {
         return;
       }
 
+      const rawGoal = parseInt(goalInput.value || '0', 10) || 0;
+      const weekly_goal = rawGoal > 0 ? rawGoal : null;
+
       const saved = createCategory({
         ...draft,
         name: form.querySelector('#cat-name').value,
         color: form.querySelector('#cat-color').value,
-        weekly_goal: form.querySelector('#cat-goal').value || null,
+        weekly_goal,
         is_relocatable: form.querySelector('#cat-reloc').value === 'true',
-        is_sacrificeable: form.querySelector('#cat-sac').value === 'true',
+        in_global_list: isEdit ? Boolean(draft.in_global_list) : false,
         allowed_shifts
       });
 
@@ -336,7 +461,7 @@ export class SettingsView {
           <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
             Deseja realmente excluir a categoria <strong>${this._escape(draft.name)}</strong>?
           </p>
-          <div style="display:flex; gap:8px; margin-top:6px;">
+          <div class="modal-footer-actions">
             <button type="button" class="btn btn-secondary" style="flex:1;" id="cat-del-cancel">Cancelar</button>
             <button type="button" class="btn btn-danger" style="flex:1;" id="cat-del-confirm">Excluir</button>
           </div>

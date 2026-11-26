@@ -40,7 +40,6 @@ export function createCategory({
   priority_order = 0,
   is_relocatable = true,
   in_global_list = false,
-  // Compatibilidade retroativa com backups antigos
   is_sacrificeable = undefined,
   is_compensable = undefined,
   created_at = nowISO(),

@@ -45,7 +45,12 @@ export class LocalStorageAdapter extends StorageRepository {
             : typeof c.is_compensable === 'boolean'
               ? c.is_compensable
               : true,
-        is_sacrificeable: typeof c.is_sacrificeable === 'boolean' ? c.is_sacrificeable : true
+        in_global_list:
+          typeof c.in_global_list === 'boolean'
+            ? c.in_global_list
+            : typeof c.is_sacrificeable === 'boolean'
+              ? c.is_sacrificeable
+              : false
       }))
       .sort((a, b) => a.priority_order - b.priority_order);
   }
@@ -58,9 +63,11 @@ export class LocalStorageAdapter extends StorageRepository {
         ? Number(category.priority_order)
         : list.length,
       is_relocatable: Boolean(category.is_relocatable),
-      is_sacrificeable: Boolean(category.is_sacrificeable),
+      in_global_list: Boolean(category.in_global_list),
       updated_at: nowISO()
     };
+    delete record.is_sacrificeable;
+
     const idx = list.findIndex((c) => c.id === record.id);
     if (idx >= 0) list[idx] = record;
     else list.push(record);
@@ -69,13 +76,17 @@ export class LocalStorageAdapter extends StorageRepository {
   }
 
   async saveCategoriesBulk(categories) {
-    const normalized = categories.map((c, idx) => ({
-      ...c,
-      priority_order: Number.isFinite(Number(c.priority_order)) ? Number(c.priority_order) : idx,
-      is_relocatable: Boolean(c.is_relocatable),
-      is_sacrificeable: Boolean(c.is_sacrificeable),
-      updated_at: nowISO()
-    }));
+    const normalized = categories.map((c, idx) => {
+      const rec = {
+        ...c,
+        priority_order: Number.isFinite(Number(c.priority_order)) ? Number(c.priority_order) : idx,
+        is_relocatable: Boolean(c.is_relocatable),
+        in_global_list: Boolean(c.in_global_list),
+        updated_at: nowISO()
+      };
+      delete rec.is_sacrificeable;
+      return rec;
+    });
     this._write(STORAGE_KEYS.CATEGORIES, normalized);
     return normalized;
   }
@@ -216,7 +227,7 @@ export class LocalStorageAdapter extends StorageRepository {
 
   async exportAll() {
     return {
-      version: 3,
+      version: 4,
       exported_at: nowISO(),
       categories: await this.getCategories(),
       events: await this.getEvents(),

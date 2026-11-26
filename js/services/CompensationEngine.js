@@ -17,23 +17,26 @@ export class CompensationEngine {
     const events = await this.repo.getEvents();
     const weekDates = new Set(getWeekDates(anchorDateStr));
 
-    return categories.map((cat) => {
-      const catEvents = events.filter(
-        (e) => e.category_id === cat.id && weekDates.has(e.date)
-      );
-      const completed = catEvents.filter((e) => e.status === EVENT_STATUS.DONE).length;
-      const scheduled = catEvents.filter((e) => e.status !== EVENT_STATUS.FAILED).length;
-      const failed = catEvents.filter((e) => e.status === EVENT_STATUS.FAILED).length;
+    return categories
+      .filter((cat) => cat.weekly_goal !== null && Number(cat.weekly_goal) > 0)
+      .map((cat) => {
+        const goal = Number(cat.weekly_goal);
+        const catEvents = events.filter(
+          (e) => e.category_id === cat.id && weekDates.has(e.date)
+        );
+        const completed = catEvents.filter((e) => e.status === EVENT_STATUS.DONE).length;
+        const scheduled = catEvents.filter((e) => e.status !== EVENT_STATUS.FAILED).length;
+        const failed = catEvents.filter((e) => e.status === EVENT_STATUS.FAILED).length;
 
-      return {
-        category: cat,
-        completed,
-        scheduled,
-        failed,
-        goal: cat.weekly_goal,
-        deficit: cat.weekly_goal ? Math.max(0, cat.weekly_goal - scheduled) : 0
-      };
-    });
+        return {
+          category: cat,
+          completed,
+          scheduled,
+          failed,
+          goal,
+          deficit: Math.max(0, goal - scheduled)
+        };
+      });
   }
 
   _buildCandidateSlots(referenceDateStr, referenceShiftId, allowNextWeek, now = new Date()) {
@@ -65,19 +68,17 @@ export class CompensationEngine {
     return slots;
   }
 
-  /**
-   * Constrói a Lista Geral ordenada do menor peso para o maior peso:
-   * ['none', ...categorias com priority_order < targetCat.priority_order que sejam sacrificáveis]
-   */
   _buildSearchTargetsForCategory(targetCat, orderedCategories) {
     const targets = [{ type: 'none', category: null }];
+    const globalList = orderedCategories.filter((c) => Boolean(c.in_global_list));
+    const targetIndexInGlobal = globalList.findIndex((c) => c.id === targetCat.id);
 
-    for (const cat of orderedCategories) {
-      // Ao chegar na própria categoria, interrompe imediatamente (não olha prioridades iguais ou superiores)
-      if (cat.id === targetCat.id || cat.priority_order >= targetCat.priority_order) {
+    for (let i = 0; i < globalList.length; i++) {
+      if (targetIndexInGlobal !== -1 && i >= targetIndexInGlobal) {
         break;
       }
-      if (!cat.is_sacrificeable) continue;
+      const cat = globalList[i];
+      if (cat.id === targetCat.id) continue;
       targets.push({ type: 'category', category: cat });
     }
 
@@ -108,12 +109,10 @@ export class CompensationEngine {
     const searchTargets = this._buildSearchTargetsForCategory(sourceCat, orderedCategories);
     const plans = [];
 
-    // Percorre a lista global na ordem exata: primeiro 'none' (vazio), depois categorias inferiores sacrificáveis
     for (let tIdx = 0; tIdx < searchTargets.length; tIdx++) {
       const target = searchTargets[tIdx];
 
       for (const slot of candidateSlots) {
-        // Respeita estritamente os turnos permitidos da categoria que está sendo realocada
         if (!sourceCat.allowed_shifts.includes(slot.shift)) continue;
 
         const occupant = eventBySlot.get(`${slot.date}::${slot.shift}`);
@@ -132,12 +131,10 @@ export class CompensationEngine {
           }
         } else if (target.type === 'category' && occupant) {
           if (occupant.category_id !== target.category.id) continue;
-          // Ignora se por algum motivo for a própria categoria
           if (occupant.category_id === sourceCat.id) continue;
 
           const occupantCat = target.category;
 
-          // Se a categoria deslocada também for realocável, tenta encadear a realocação dela
           if (occupantCat.is_relocatable) {
             const subTargets = this._buildSearchTargetsForCategory(occupantCat, orderedCategories);
             let chained = false;
@@ -213,10 +210,6 @@ export class CompensationEngine {
     return plans;
   }
 
-  /**
-   * Dispara realocação automática quando uma alteração manual de compromisso
-   * ocupa um turno e desloca o compromisso que estava lá (ex.: mover Rafa para sexta à noite onde havia Trabalho).
-   */
   async handleManualDisplacement(displacedEvent, replacingEvent) {
     const orderedCategories = await this.repo.getCategories();
     const displacedCat = orderedCategories.find((c) => c.id === displacedEvent.category_id);
@@ -257,11 +250,6 @@ export class CompensationEngine {
     return this._applyPlan(displacedEvent, displacedEvent, bestPlan, { markSourceAsFailed: false });
   }
 
-  /**
-   * Alternância idempotente (Estado A <-> Estado B):
-   * - Se estiver REALIZADO ou PENDENTE -> marca NÃO REALIZADO e executa realocação (se realocável).
-   * - Se estiver NÃO REALIZADO -> reverte log vinculado e volta para REALIZADO.
-   */
   async toggleEventCompletionState(eventId) {
     const allEvents = await this.repo.getEvents();
     const targetEvent = allEvents.find((e) => e.id === eventId);
@@ -469,6 +457,15 @@ export class CompensationEngine {
     });
   }
 
+  async rollbackAllActive() {
+    const logs = await this.repo.getCompensationLogs();
+    const active = logs.filter((l) => l.status !== 'reverted');
+    for (const log of active) {
+      await this.rollbackCompensation(log.id);
+    }
+    return active.length;
+  }
+
   async confirmCompensation(logId) {
     const logs = await this.repo.getCompensationLogs();
     const log = logs.find((l) => l.id === logId);
@@ -477,6 +474,15 @@ export class CompensationEngine {
       ...log,
       status: 'confirmed'
     });
+  }
+
+  async confirmAllPending() {
+    const logs = await this.repo.getCompensationLogs();
+    const pending = logs.filter((l) => l.status === 'pending_review');
+    for (const log of pending) {
+      await this.confirmCompensation(log.id);
+    }
+    return pending.length;
   }
 
   async getAlternativeSlotsForLog(logId) {
