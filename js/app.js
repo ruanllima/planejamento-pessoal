@@ -105,6 +105,11 @@ class AppController {
     await this.lifecycleService.syncStatuses();
     await this._updateCompensationBadge();
 
+    const appMain = document.getElementById('app-main');
+    if (appMain) {
+      appMain.classList.toggle('has-agenda-header', this.activeTab === 'agenda');
+    }
+
     if (this.activeTab === 'agenda') {
       await this.agendaView.render();
     } else if (this.activeTab === 'compensations') {

@@ -21,11 +21,11 @@
   --text-xl: 1.25rem;
 
   --status-pending: #F59E0B;
-  --status-pending-bg: rgba(245, 158, 11, 0.14);
+  --status-pending-bg: rgba(245, 158, 11, 0.10);
   --status-done: #10B981;
-  --status-done-bg: rgba(16, 185, 129, 0.14);
+  --status-done-bg: rgba(16, 185, 129, 0.10);
   --status-failed: #EF4444;
-  --status-failed-bg: rgba(239, 68, 68, 0.15);
+  --status-failed-bg: rgba(239, 68, 68, 0.14);
 
   --transition-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
   --transition-med: 240ms cubic-bezier(0.2, 0, 0, 1);
@@ -35,11 +35,20 @@
   --bg-canvas: #0D0F12;
   --bg-surface: #15181E;
   --bg-surface-header: #1C2029;
-  --bg-divider-bar: #212632;
-  --text-date-muted: #CBD5E1;
-  --sky-outline: rgba(125, 211, 252, 0.55);
   --bg-elevated: #1D222B;
   --bg-hover: #252B36;
+
+  /* Faixa superior do header (cor clara próxima do branco, dos seletores para cima) */
+  --header-band-bg: #F4F6FA;
+  --header-band-text: #0F172A;
+  --header-band-muted: #475569;
+  --header-band-border: #DCE2EC;
+  --header-control-bg: #E7ECF3;
+  --header-control-active-bg: #0F172A;
+  --header-control-active-fg: #FFFFFF;
+
+  --text-date-muted: #CBD5E1;
+  --today-card-border: #7DD3FC;
 
   --border-subtle: #262C36;
   --border-strong: #374151;
@@ -57,16 +66,25 @@
 }
 
 [data-theme="light"] {
-  --bg-canvas: #F6F7F9;
+  --bg-canvas: #EBEEF3;
   --bg-surface: #FFFFFF;
-  --bg-surface-header: #ECEFF4;
-  --bg-divider-bar: #E8ECF3;
-  --text-date-muted: #334155;
-  --sky-outline: rgba(56, 189, 248, 0.55);
-  --bg-elevated: #F1F3F6;
-  --bg-hover: #E5E8EE;
+  --bg-surface-header: #F3F5F8;
+  --bg-elevated: #F6F8FA;
+  --bg-hover: #E8ECF2;
 
-  --border-subtle: #E2E6ED;
+  /* Faixa superior do header (cor clara próxima do branco, dos seletores para cima) */
+  --header-band-bg: #FAFBFC;
+  --header-band-text: #0F172A;
+  --header-band-muted: #475569;
+  --header-band-border: #D8DFE9;
+  --header-control-bg: #ECEFF4;
+  --header-control-active-bg: #0F172A;
+  --header-control-active-fg: #FFFFFF;
+
+  --text-date-muted: #334155;
+  --today-card-border: #38BDF8;
+
+  --border-subtle: #DCE2EC;
   --border-strong: #CBD2DF;
 
   --text-primary: #0F172A;

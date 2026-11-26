@@ -18,6 +18,114 @@
   color: var(--text-secondary);
 }
 
+/* Header Bicolor Universal da Agenda (Faixa clara superior dos seletores para cima) */
+.agenda-header-band {
+  margin-left: calc(-1 * var(--space-4));
+  margin-right: calc(-1 * var(--space-4));
+  padding: calc(var(--space-4) + env(safe-area-inset-top)) var(--space-4) var(--space-4);
+  margin-bottom: var(--space-4);
+  background-color: var(--header-band-bg);
+  color: var(--header-band-text);
+  border-bottom: 1px solid var(--header-band-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (min-width: 840px) {
+  .agenda-header-band {
+    margin-left: calc(-1 * var(--space-6));
+    margin-right: calc(-1 * var(--space-6));
+    padding: var(--space-5) var(--space-6) var(--space-4);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    border-left: 1px solid var(--header-band-border);
+    border-right: 1px solid var(--header-band-border);
+  }
+}
+
+.agenda-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.agenda-month-year {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--header-band-text);
+  line-height: 1.2;
+}
+
+/* Cards coadjuvantes ao lado de Mês Ano (apenas em Dia e Semana) */
+.header-coadjuvant-group {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.header-coadjuvant-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background-color: #FFFFFF;
+  border: 1px solid var(--header-band-border);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--header-band-muted);
+  line-height: 1.35;
+}
+
+.header-coadjuvant-card.is-today {
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border-color: #0F172A;
+}
+
+.header-coadjuvant-sep {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--header-band-muted);
+}
+
+.agenda-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agenda-header-band .segmented-control {
+  background-color: var(--header-control-bg);
+  border: 1px solid var(--header-band-border);
+}
+
+.agenda-header-band .seg-btn {
+  color: var(--header-band-muted);
+}
+
+.agenda-header-band .seg-btn.active {
+  background-color: var(--header-control-active-bg);
+  color: var(--header-control-active-fg);
+}
+
+.agenda-header-band .btn-icon,
+.agenda-header-band .btn-secondary {
+  background-color: #FFFFFF;
+  border: 1px solid var(--header-band-border);
+  color: var(--header-band-text);
+}
+
+.agenda-header-band .btn-icon:hover,
+.agenda-header-band .btn-secondary:hover {
+  background-color: var(--header-control-bg);
+}
+
 .segmented-control {
   display: inline-flex;
   background-color: var(--bg-surface);
@@ -43,7 +151,7 @@
 .date-nav {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
 .btn {
@@ -51,7 +159,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: 8px 14px;
+  padding: 7px 13px;
   font-size: var(--text-sm);
   font-weight: 600;
   border-radius: var(--radius-md);
@@ -90,8 +198,8 @@
 }
 
 .btn-icon {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -105,7 +213,7 @@
   background-color: var(--bg-elevated);
 }
 
-/* Visualização Semana — Grid 1 coluna com Header estrutural em faixa 100% width */
+/* Visualização Semana — Grid 1 coluna */
 .week-vertical-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -123,8 +231,9 @@
   flex-direction: column;
 }
 
+/* Card maior do dia atual com borda azul céu suave */
 .day-row-card.is-today {
-  border-color: var(--text-primary);
+  border: 1.5px solid var(--today-card-border);
 }
 
 .day-col-header {
@@ -146,20 +255,29 @@
   color: var(--text-primary);
 }
 
+/* Cardzinho da data idêntico em tamanho e padding para hoje e outros dias, mudando apenas cor de fundo/texto */
 .day-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--text-secondary);
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
   padding: 2px 8px;
   border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
 }
 
-.day-row-card.is-today .day-num {
-  background-color: var(--accent-primary);
-  color: var(--accent-primary-fg);
-  border-color: var(--accent-primary);
+.day-num.is-other {
+  background-color: var(--bg-surface);
+  color: var(--text-date-muted);
+  border-color: var(--border-subtle);
+}
+
+.day-num.is-today {
+  background-color: #FFFFFF;
+  color: #000000;
+  border-color: transparent;
 }
 
 .day-shifts-stack {
@@ -204,7 +322,7 @@
   background-color: var(--bg-elevated);
 }
 
-/* Card de Evento Interativo (Clique no card alterna Realizado <-> Não Realizado) */
+/* Card de Evento Interativo */
 .event-card {
   position: relative;
   background-color: var(--bg-elevated);
@@ -229,17 +347,20 @@
   transform: scale(0.992);
 }
 
-.event-card[data-status="pendente"] {
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.35);
-}
-
-.event-card[data-status="realizado"] {
-  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.28);
-}
-
+/* Sem borda colorida para pendentes ou realizados; vermelho apenas para não realizados */
 .event-card[data-status="nao_realizado"] {
   background-color: var(--status-failed-bg);
-  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
+  border-top-color: rgba(239, 68, 68, 0.5);
+  border-right-color: rgba(239, 68, 68, 0.5);
+  border-bottom-color: rgba(239, 68, 68, 0.5);
+}
+
+.event-card.is-future {
+  cursor: default;
+}
+
+.event-card.is-future:active {
+  transform: none;
 }
 
 .event-main {
@@ -250,6 +371,13 @@
   flex: 1;
 }
 
+.event-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .event-title {
   font-size: var(--text-sm);
   font-weight: 700;
@@ -257,11 +385,32 @@
   word-break: break-word;
 }
 
+/* Cardzinho "New" mais discreto, suave e fonte mais fina */
+.badge-new {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: rgba(250, 204, 21, 0.85);
+  background-color: rgba(250, 204, 21, 0.08);
+  border: 1px solid rgba(250, 204, 21, 0.22);
+  line-height: 1.35;
+}
+
+[data-theme="light"] .badge-new {
+  color: #A16207;
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
 .event-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 7px;
   font-size: 0.72rem;
   color: var(--text-secondary);
 }
@@ -283,13 +432,15 @@
   flex-shrink: 0;
 }
 
+/* Cardzinho de status mais compacto e limpo */
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: var(--radius-full);
-  font-size: 0.66rem;
-  font-weight: 700;
+  font-size: 0.61rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .status-pill.pendente {
@@ -307,7 +458,7 @@
   color: var(--status-failed);
 }
 
-/* Apenas Editar e Excluir (Lixeira) lado a lado */
+/* Apenas Editar e Excluir lado a lado */
 .event-icon-actions {
   display: inline-flex;
   align-items: center;
@@ -355,6 +506,10 @@
   gap: var(--space-3);
 }
 
+.day-single-card.is-today {
+  border: 1.5px solid var(--today-card-border);
+}
+
 /* Visualização Mês */
 .month-weekdays {
   display: grid;
@@ -395,12 +550,29 @@
 }
 
 .month-cell.is-today {
-  border-color: var(--text-primary);
+  border: 1.5px solid var(--today-card-border);
 }
 
 .month-cell-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
   font-size: var(--text-xs);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-cell-num.is-other {
+  color: var(--text-date-muted);
+}
+
+.month-cell-num.is-today {
+  background-color: #FFFFFF;
+  color: #000000;
 }
 
 .month-dots {
@@ -820,196 +992,4 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-
-/* Divisória Universal entre Header e Visualizações (Dia, Semana e Mês) */
-.agenda-top-header {
-  margin-bottom: var(--space-3);
-}
-
-.agenda-sub-divider {
-  width: 100%;
-  background-color: var(--bg-divider-bar);
-  border-top: 1px solid var(--border-strong);
-  border-bottom: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  padding: 15px var(--space-4);
-  margin-bottom: var(--space-4);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.sub-day-bar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.sub-day-weekday {
-  font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: capitalize;
-}
-
-.sub-date-badge {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-}
-
-.sub-date-badge.is-today {
-  background-color: #FFFFFF;
-  color: #0D0F12;
-  border: 1.5px solid var(--sky-outline);
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.16);
-}
-
-.sub-date-badge.is-other {
-  background-color: var(--bg-surface);
-  color: var(--text-date-muted);
-  border: 1px solid var(--border-subtle);
-}
-
-/* Minicards arredondados na Semana (Dom 22/11 a Sáb 28/11) */
-.sub-week-range {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.week-range-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-full);
-  padding: 5px 12px;
-}
-
-.week-pill-name {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.week-pill-date {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: var(--radius-full);
-  font-variant-numeric: tabular-nums;
-}
-
-.week-pill-date.is-today {
-  background-color: #FFFFFF;
-  color: #0D0F12;
-  border: 1.5px solid var(--sky-outline);
-}
-
-.week-pill-date.is-other {
-  color: var(--text-date-muted);
-}
-
-.week-range-sep {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.sub-month-bar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.sub-month-label {
-  font-size: var(--text-sm);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.sub-month-hint {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-
-/* Destaque da data atual (fundo branco, texto preto, contorno azul céu suave) e datas comuns mais claras */
-.day-num.is-other {
-  color: var(--text-date-muted);
-}
-
-.day-row-card.is-today .day-num,
-.day-num.is-today {
-  background-color: #FFFFFF;
-  color: #0D0F12;
-  border: 1.5px solid var(--sky-outline);
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.16);
-}
-
-.month-cell-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 5px;
-  border-radius: var(--radius-full);
-}
-
-.month-cell-num.is-other {
-  color: var(--text-date-muted);
-}
-
-.month-cell-num.is-today {
-  background-color: #FFFFFF;
-  color: #0D0F12;
-  border: 1.5px solid var(--sky-outline);
-  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.16);
-}
-
-/* Compromissos futuros bloqueados ao toque */
-.event-card.is-future {
-  cursor: default;
-}
-
-.event-card.is-future:active {
-  transform: none;
-}
-
-/* Linha de título + Cardzinho amarelo minimalista "New" */
-.event-title-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-}
-
-.badge-new {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 7px;
-  border-radius: var(--radius-sm);
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  color: #FACC15;
-  background-color: rgba(250, 204, 21, 0.14);
-  border: 1px solid rgba(250, 204, 21, 0.34);
-  line-height: 1.35;
-}
-
-[data-theme="light"] .badge-new {
-  color: #92400E;
-  background-color: #FEF3C7;
-  border-color: #F59E0B;
 }

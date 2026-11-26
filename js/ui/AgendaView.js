@@ -55,12 +55,13 @@ export class AgendaView {
     const events = await this.repo.getEvents();
 
     this.container.innerHTML = `
-      <header class="view-header agenda-top-header">
-        <div>
-          <h1 class="view-title">${this._getFixedMonthYearTitle()}</h1>
+      <header class="agenda-header-band">
+        <div class="agenda-title-line">
+          <h1 class="agenda-month-year">${this._getFixedMonthYearTitle()}</h1>
+          ${this._renderHeaderCoadjuvants(todayStr)}
         </div>
 
-        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+        <div class="agenda-controls-row">
           <div class="date-nav">
             <button class="btn-icon" id="nav-prev" aria-label="Período anterior">‹</button>
             <button class="btn btn-secondary" id="nav-today">Hoje</button>
@@ -75,10 +76,6 @@ export class AgendaView {
         </div>
       </header>
 
-      <div class="agenda-sub-divider" aria-live="polite">
-        ${this._renderSubDividerContent(todayStr)}
-      </div>
-
       <div id="agenda-content"></div>
     `;
 
@@ -86,7 +83,7 @@ export class AgendaView {
 
     const contentEl = this.container.querySelector('#agenda-content');
     if (this.viewMode === 'day') {
-      this._renderDayView(contentEl, this.anchorDate, events, catMap, settings);
+      this._renderDayView(contentEl, this.anchorDate, events, catMap, settings, todayStr);
     } else if (this.viewMode === 'week') {
       this._renderWeekView(contentEl, visibleDates, events, catMap, settings, todayStr);
     } else {
@@ -94,22 +91,21 @@ export class AgendaView {
     }
   }
 
-  // Label Mês e Ano fixa independente da visualização (Dia, Semana ou Mês)
   _getFixedMonthYearTitle() {
     const d = parseDateStr(this.anchorDate);
     return `${getMonthName(d.getMonth())} ${d.getFullYear()}`;
   }
 
-  // Sub-header adaptativo e coadjuvante dentro da divisória universal
-  _renderSubDividerContent(todayStr) {
+  // Informações coadjuvantes menores ao lado de Mês Ano (apenas em Dia e Semana; Mês fica vazio)
+  _renderHeaderCoadjuvants(todayStr) {
     if (this.viewMode === 'day') {
       const weekdayFull = getWeekdayFull(this.anchorDate);
       const dayDate = formatDayMonth(this.anchorDate);
       const isToday = this.anchorDate === todayStr;
       return `
-        <div class="sub-day-bar">
-          <span class="sub-day-weekday">${weekdayFull}</span>
-          <span class="sub-date-badge ${isToday ? 'is-today' : 'is-other'}">${dayDate}</span>
+        <div class="header-coadjuvant-group" aria-live="polite">
+          <span class="header-coadjuvant-card">${weekdayFull}</span>
+          <span class="header-coadjuvant-card ${isToday ? 'is-today' : ''}">${dayDate}</span>
         </div>
       `;
     }
@@ -122,26 +118,15 @@ export class AgendaView {
       const endIsToday = endStr === todayStr;
 
       return `
-        <div class="sub-week-range">
-          <div class="week-range-pill ${startIsToday ? 'has-today' : ''}">
-            <span class="week-pill-name">${getWeekdayLabel(startStr)}</span>
-            <span class="week-pill-date ${startIsToday ? 'is-today' : 'is-other'}">${formatDayMonth(startStr)}</span>
-          </div>
-          <span class="week-range-sep">a</span>
-          <div class="week-range-pill ${endIsToday ? 'has-today' : ''}">
-            <span class="week-pill-name">${getWeekdayLabel(endStr)}</span>
-            <span class="week-pill-date ${endIsToday ? 'is-today' : 'is-other'}">${formatDayMonth(endStr)}</span>
-          </div>
+        <div class="header-coadjuvant-group" aria-live="polite">
+          <span class="header-coadjuvant-card ${startIsToday ? 'is-today' : ''}">${getWeekdayLabel(startStr)} ${formatDayMonth(startStr)}</span>
+          <span class="header-coadjuvant-sep">-</span>
+          <span class="header-coadjuvant-card ${endIsToday ? 'is-today' : ''}">${getWeekdayLabel(endStr)} ${formatDayMonth(endStr)}</span>
         </div>
       `;
     }
 
-    return `
-      <div class="sub-month-bar">
-        <span class="sub-month-label">Calendário Mensal</span>
-        <span class="sub-month-hint">Toque em um dia para gerenciar turnos</span>
-      </div>
-    `;
+    return '';
   }
 
   _bindHeaderEvents() {
@@ -237,16 +222,17 @@ export class AgendaView {
     container.appendChild(list);
   }
 
-  _renderDayView(container, dateStr, events, catMap, settings) {
+  _renderDayView(container, dateStr, events, catMap, settings, todayStr) {
     const list = document.createElement('div');
     list.className = 'day-single-list';
+    const isToday = dateStr === todayStr;
 
     for (const shiftId of SHIFT_ORDER) {
       const shiftMeta = SHIFTS[shiftId.toUpperCase()];
       const slotEvents = events.filter((e) => e.date === dateStr && e.shift === shiftId);
 
       const card = document.createElement('div');
-      card.className = 'day-single-card';
+      card.className = `day-single-card ${isToday ? 'is-today' : ''}`;
       card.innerHTML = `
         <div class="shift-label">
           <span style="font-size:0.82rem; color:var(--text-primary);">${shiftMeta.label}</span>
@@ -370,7 +356,6 @@ export class AgendaView {
       </div>
     `;
 
-    // Clique no próprio card alterna silenciosamente entre Realizado e Não Realizado (bloqueado para futuros, sem pop-up)
     card.addEventListener('click', async (e) => {
       if (e.target.closest('.event-icon-actions')) return;
       if (isFuture) return;
