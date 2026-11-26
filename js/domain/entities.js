@@ -67,6 +67,7 @@ export function createEvent({
   manual_status_override = false,
   recurrence_id = null,
   compensation_log_id = null,
+  is_compensated = false,
   notes = '',
   created_at = nowISO(),
   updated_at = nowISO()
@@ -74,7 +75,7 @@ export function createEvent({
   const shiftInfo = Object.values(SHIFTS).find((s) => s.id === shift) || SHIFTS.MORNING;
   return {
     id,
-    title: title.trim(),
+    title: title.replace(/\s*\(Compensação\)/gi, '').trim(),
     category_id,
     date,
     shift: shiftInfo.id,
@@ -84,6 +85,7 @@ export function createEvent({
     manual_status_override: Boolean(manual_status_override),
     recurrence_id,
     compensation_log_id,
+    is_compensated: Boolean(is_compensated || compensation_log_id),
     notes,
     created_at,
     updated_at

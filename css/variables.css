@@ -35,6 +35,9 @@
   --bg-canvas: #0D0F12;
   --bg-surface: #15181E;
   --bg-surface-header: #1C2029;
+  --bg-divider-bar: #212632;
+  --text-date-muted: #CBD5E1;
+  --sky-outline: rgba(125, 211, 252, 0.55);
   --bg-elevated: #1D222B;
   --bg-hover: #252B36;
 
@@ -57,6 +60,9 @@
   --bg-canvas: #F6F7F9;
   --bg-surface: #FFFFFF;
   --bg-surface-header: #ECEFF4;
+  --bg-divider-bar: #E8ECF3;
+  --text-date-muted: #334155;
+  --sky-outline: rgba(56, 189, 248, 0.55);
   --bg-elevated: #F1F3F6;
   --bg-hover: #E5E8EE;
 

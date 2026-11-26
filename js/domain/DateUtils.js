@@ -58,6 +58,11 @@ export function formatDayShort(dateStr) {
   return `${WEEKDAYS_SHORT[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+export function formatDayMonth(dateStr) {
+  const d = parseDateStr(dateStr);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function getWeekdayFull(dateStr) {
   return WEEKDAYS_FULL[parseDateStr(dateStr).getDay()];
 }
@@ -83,4 +88,26 @@ export function inferShiftFromTime(timeStr) {
   if (hour < 12) return 'morning';
   if (hour < 18) return 'afternoon';
   return 'night';
+}
+
+/**
+ * Regra rígida de consistência temporal:
+ * Retorna true se o compromisso ainda não iniciou (está no futuro em relação a `now`).
+ */
+export function isEventInFuture(ev, now = new Date()) {
+  const todayStr = toDateStr(now);
+  if (ev.date > todayStr) return true;
+  if (ev.date < todayStr) return false;
+
+  const shiftStartHours = { morning: 6, afternoon: 12, night: 18 };
+  const startHour = ev.start_time
+    ? Number(ev.start_time.split(':')[0])
+    : (shiftStartHours[ev.shift] ?? 6);
+  const startMin = ev.start_time && ev.start_time.includes(':')
+    ? Number(ev.start_time.split(':')[1])
+    : 0;
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const evMinutes = startHour * 60 + startMin;
+  return evMinutes > nowMinutes;
 }

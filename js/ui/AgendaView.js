@@ -1,12 +1,15 @@
 import { createEvent, EVENT_STATUS, SHIFT_ORDER, SHIFTS } from '../domain/entities.js';
 import {
   addDays,
+  formatDayMonth,
   formatDayShort,
   getMonthGridDates,
   getMonthName,
   getWeekdayFull,
+  getWeekdayLabel,
   getWeekDates,
   inferShiftFromTime,
+  isEventInFuture,
   parseDateStr,
   toDateStr
 } from '../domain/DateUtils.js';
@@ -52,9 +55,9 @@ export class AgendaView {
     const events = await this.repo.getEvents();
 
     this.container.innerHTML = `
-      <header class="view-header">
+      <header class="view-header agenda-top-header">
         <div>
-          <h1 class="view-title">${this._getHeaderTitle()}</h1>
+          <h1 class="view-title">${this._getFixedMonthYearTitle()}</h1>
         </div>
 
         <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
@@ -72,6 +75,10 @@ export class AgendaView {
         </div>
       </header>
 
+      <div class="agenda-sub-divider" aria-live="polite">
+        ${this._renderSubDividerContent(todayStr)}
+      </div>
+
       <div id="agenda-content"></div>
     `;
 
@@ -87,16 +94,54 @@ export class AgendaView {
     }
   }
 
-  _getHeaderTitle() {
+  // Label Mês e Ano fixa independente da visualização (Dia, Semana ou Mês)
+  _getFixedMonthYearTitle() {
     const d = parseDateStr(this.anchorDate);
+    return `${getMonthName(d.getMonth())} ${d.getFullYear()}`;
+  }
+
+  // Sub-header adaptativo e coadjuvante dentro da divisória universal
+  _renderSubDividerContent(todayStr) {
     if (this.viewMode === 'day') {
-      return formatDayShort(this.anchorDate);
+      const weekdayFull = getWeekdayFull(this.anchorDate);
+      const dayDate = formatDayMonth(this.anchorDate);
+      const isToday = this.anchorDate === todayStr;
+      return `
+        <div class="sub-day-bar">
+          <span class="sub-day-weekday">${weekdayFull}</span>
+          <span class="sub-date-badge ${isToday ? 'is-today' : 'is-other'}">${dayDate}</span>
+        </div>
+      `;
     }
+
     if (this.viewMode === 'week') {
       const week = getWeekDates(this.anchorDate);
-      return `${formatDayShort(week[0])} a ${formatDayShort(week[6])}`;
+      const startStr = week[0];
+      const endStr = week[6];
+      const startIsToday = startStr === todayStr;
+      const endIsToday = endStr === todayStr;
+
+      return `
+        <div class="sub-week-range">
+          <div class="week-range-pill ${startIsToday ? 'has-today' : ''}">
+            <span class="week-pill-name">${getWeekdayLabel(startStr)}</span>
+            <span class="week-pill-date ${startIsToday ? 'is-today' : 'is-other'}">${formatDayMonth(startStr)}</span>
+          </div>
+          <span class="week-range-sep">a</span>
+          <div class="week-range-pill ${endIsToday ? 'has-today' : ''}">
+            <span class="week-pill-name">${getWeekdayLabel(endStr)}</span>
+            <span class="week-pill-date ${endIsToday ? 'is-today' : 'is-other'}">${formatDayMonth(endStr)}</span>
+          </div>
+        </div>
+      `;
     }
-    return `${getMonthName(d.getMonth())} ${d.getFullYear()}`;
+
+    return `
+      <div class="sub-month-bar">
+        <span class="sub-month-label">Calendário Mensal</span>
+        <span class="sub-month-hint">Toque em um dia para gerenciar turnos</span>
+      </div>
+    `;
   }
 
   _bindHeaderEvents() {
@@ -148,7 +193,7 @@ export class AgendaView {
       dayCard.innerHTML = `
         <div class="day-col-header">
           <span class="day-name">${getWeekdayFull(dateStr)}</span>
-          <span class="day-num">${dateLabel}</span>
+          <span class="day-num ${dateStr === todayStr ? 'is-today' : 'is-other'}">${dateLabel}</span>
         </div>
         <div class="day-shifts-stack"></div>
       `;
@@ -246,21 +291,22 @@ export class AgendaView {
 
     for (const cell of cells) {
       const dayEvents = events.filter((e) => e.date === cell.dateStr);
+      const isToday = cell.dateStr === todayStr;
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `month-cell ${cell.isCurrentMonth ? '' : 'other-month'} ${cell.dateStr === todayStr ? 'is-today' : ''}`;
+      btn.className = `month-cell ${cell.isCurrentMonth ? '' : 'other-month'} ${isToday ? 'is-today' : ''}`;
 
       const barsHtml = SHIFT_ORDER.map((shiftId) => {
         const ev = dayEvents.find((e) => e.shift === shiftId);
         if (!ev) return '';
         const cat = catMap.get(ev.category_id);
         const color = cat ? cat.color : '#64748B';
-        const isFailed = ev.status === EVENT_STATUS.FAILED;
+        const isFailed = ev.status === EVENT_STATUS.FAILED && !isEventInFuture(ev);
         return `<span class="month-dot-bar ${isFailed ? 'failed' : ''}" style="--cat-color:${color}" title="${ev.title}"></span>`;
       }).join('');
 
       btn.innerHTML = `
-        <span class="month-cell-num">${cell.dayNum}</span>
+        <span class="month-cell-num ${isToday ? 'is-today' : 'is-other'}">${cell.dayNum}</span>
         <div class="month-dots">${barsHtml}</div>
       `;
 
@@ -278,28 +324,40 @@ export class AgendaView {
   _buildEventCard(ev, category, settings) {
     const color = category ? category.color : '#64748B';
     const catName = category ? category.name : 'Sem Categoria';
+    const isFuture = isEventInFuture(ev);
+    const effectiveStatus = isFuture ? EVENT_STATUS.PENDING : ev.status;
+
     const statusLabels = {
       [EVENT_STATUS.PENDING]: 'Pendente',
       [EVENT_STATUS.DONE]: 'Realizado',
       [EVENT_STATUS.FAILED]: 'Não Realizado'
     };
 
+    const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
+    const isCompensated = Boolean(ev.is_compensated || ev.compensation_log_id);
+    const newBadgeHtml = isCompensated ? `<span class="badge-new">New</span>` : '';
+
     const card = document.createElement('div');
-    card.className = 'event-card';
-    card.dataset.status = ev.status;
+    card.className = `event-card ${isFuture ? 'is-future' : ''}`;
+    card.dataset.status = effectiveStatus;
     card.style.setProperty('--cat-color', color);
-    card.setAttribute('role', 'button');
-    card.setAttribute('tabindex', '0');
+    if (!isFuture) {
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+    }
 
     const timeTag =
       settings.time_mode === '24h' && ev.start_time ? ` (${ev.start_time})` : '';
 
     card.innerHTML = `
       <div class="event-main">
-        <div class="event-title">${this._escape(ev.title)}</div>
+        <div class="event-title-row">
+          <span class="event-title">${this._escape(cleanTitle)}</span>
+          ${newBadgeHtml}
+        </div>
         <div class="event-meta">
           <span class="cat-badge"><span class="cat-swatch"></span>${this._escape(catName)}${timeTag}</span>
-          <span class="status-pill ${ev.status}">${statusLabels[ev.status]}</span>
+          <span class="status-pill ${effectiveStatus}">${statusLabels[effectiveStatus]}</span>
         </div>
       </div>
       <div class="event-icon-actions">
@@ -312,28 +370,12 @@ export class AgendaView {
       </div>
     `;
 
-    // Clique no próprio card alterna absolutamente entre Realizado (Estado A) e Não Realizado (Estado B)
+    // Clique no próprio card alterna silenciosamente entre Realizado e Não Realizado (bloqueado para futuros, sem pop-up)
     card.addEventListener('click', async (e) => {
       if (e.target.closest('.event-icon-actions')) return;
+      if (isFuture) return;
 
-      const result = await this.engine.toggleEventCompletionState(ev.id);
-      if (result.state === 'failed') {
-        if (result.compensated && result.log) {
-          this.showToast(
-            'Não realizado. Compensado automaticamente.',
-            'Desfazer',
-            async () => {
-              await this.engine.rollbackCompensation(result.log.id);
-              await this.onStateChange();
-            }
-          );
-        } else {
-          this.showToast('Marcado como não realizado.');
-        }
-      } else {
-        this.showToast('Marcado como realizado.');
-      }
-
+      await this.engine.toggleEventCompletionState(ev.id);
       await this.onStateChange();
     });
 
@@ -353,13 +395,14 @@ export class AgendaView {
 
   _confirmDeleteEvent(ev) {
     const isRecurrent = Boolean(ev.recurrence_id);
+    const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
     const wrap = document.createElement('div');
     wrap.className = 'form-grid';
 
     if (isRecurrent) {
       wrap.innerHTML = `
         <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
-          Deseja realmente excluir o compromisso recorrente <strong>${this._escape(ev.title)}</strong>?
+          Deseja realmente excluir o compromisso recorrente <strong>${this._escape(cleanTitle)}</strong>?
         </p>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
           <button type="button" class="btn btn-danger" id="del-rec-one">Excluir apenas este</button>
@@ -391,7 +434,7 @@ export class AgendaView {
     } else {
       wrap.innerHTML = `
         <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
-          Deseja realmente excluir <strong>${this._escape(ev.title)}</strong>? Esta ação deixará o turno livre.
+          Deseja realmente excluir <strong>${this._escape(cleanTitle)}</strong>? Esta ação deixará o turno livre.
         </p>
         <div style="display:flex; gap:8px; margin-top:6px;">
           <button type="button" class="btn btn-secondary" style="flex:1;" id="del-cancel">Cancelar</button>
@@ -428,11 +471,12 @@ export class AgendaView {
 
       if (ev) {
         const cat = catMap.get(ev.category_id);
+        const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
         row.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <div>
               <div style="font-size:0.72rem; color:var(--text-secondary);">${shiftMeta.label}</div>
-              <div style="font-weight:700;">${this._escape(ev.title)}</div>
+              <div style="font-weight:700;">${this._escape(cleanTitle)}</div>
               <div style="font-size:0.75rem; color:${cat ? cat.color : '#888'};">${cat ? cat.name : ''}</div>
             </div>
             <div class="event-icon-actions">
@@ -476,7 +520,10 @@ export class AgendaView {
     let selectedCatId = eventDraft.category_id || categories[0].id;
     let lastAutoTitle = categories.find((c) => c.id === selectedCatId)?.name || '';
 
-    const initialTitle = isEdit ? eventDraft.title : lastAutoTitle;
+    const cleanDraftTitle = eventDraft.title
+      ? eventDraft.title.replace(/\s*\(Compensação\)/gi, '').trim()
+      : '';
+    const initialTitle = isEdit ? cleanDraftTitle : lastAutoTitle;
     const shiftLabel = SHIFTS[(eventDraft.shift || 'morning').toUpperCase()].label;
 
     const form = document.createElement('form');
@@ -554,7 +601,7 @@ export class AgendaView {
         shift = inferShiftFromTime(start_time);
       }
 
-      const record = createEvent({
+      const candidate = createEvent({
         ...eventDraft,
         title,
         category_id: selectedCatId,
@@ -566,7 +613,12 @@ export class AgendaView {
         manual_status_override: isEdit ? eventDraft.manual_status_override : false
       });
 
-      await this.repo.saveEvent(record);
+      if (isEventInFuture(candidate)) {
+        candidate.status = EVENT_STATUS.PENDING;
+        candidate.manual_status_override = false;
+      }
+
+      await this.repo.saveEvent(candidate);
       this.modal.close();
       await this.onStateChange();
     });

@@ -73,7 +73,7 @@ export class SettingsView {
               .map((id) => catMap.get(id)?.name)
               .filter(Boolean)
               .join(', ')
-          : 'Nenhum (não desloca outras categorias)';
+          : 'Nenhum';
 
       const card = document.createElement('div');
       card.className = 'cat-struct-card';

@@ -5,7 +5,7 @@ import {
   SHIFT_ORDER,
   SHIFTS
 } from '../domain/entities.js';
-import { addDays, formatDayShort, getCurrentShiftId, getWeekDates, toDateStr } from '../domain/DateUtils.js';
+import { addDays, formatDayShort, getCurrentShiftId, getWeekDates, isEventInFuture, toDateStr } from '../domain/DateUtils.js';
 
 export class CompensationEngine {
   constructor(repository) {
@@ -171,6 +171,10 @@ export class CompensationEngine {
     const targetEvent = allEvents.find((e) => e.id === eventId);
     if (!targetEvent) throw new Error('Evento não encontrado.');
 
+    if (isEventInFuture(targetEvent)) {
+      return { state: 'blocked_future', compensated: false };
+    }
+
     if (targetEvent.status === EVENT_STATUS.FAILED) {
       const logs = await this.repo.getCompensationLogs();
       const activeLog = logs.find(
@@ -201,6 +205,10 @@ export class CompensationEngine {
     const allEvents = await this.repo.getEvents();
     const targetEvent = allEvents.find((e) => e.id === eventId);
     if (!targetEvent) throw new Error('Evento não encontrado.');
+
+    if (isEventInFuture(targetEvent)) {
+      return { compensated: false, reason: 'Compromissos futuros não podem ser marcados como não realizados.' };
+    }
 
     const categories = await this.repo.getCategories();
     const categoriesMap = new Map(categories.map((c) => [c.id, c]));
@@ -253,13 +261,15 @@ export class CompensationEngine {
       reason_human: plan.summary
     }).id;
 
+    const cleanTitle = updatedFailedEvent.title.replace(/\s*\(Compensação\)/gi, '').trim();
     const compensatedEvent = createEvent({
-      title: `${updatedFailedEvent.title} (Compensação)`,
+      title: cleanTitle,
       category_id: updatedFailedEvent.category_id,
       date: plan.targetSlot.date,
       shift: plan.targetSlot.shift,
       status: EVENT_STATUS.PENDING,
-      compensation_log_id: logId
+      compensation_log_id: logId,
+      is_compensated: true
     });
     eventsToSave.push(compensatedEvent);
     createdIds.push(compensatedEvent.id);
@@ -276,14 +286,20 @@ export class CompensationEngine {
         });
         chainSteps.push(`Substituiu "${plan.displacedEvent.title}"`);
       } else if (plan.type === 'cascade_to_empty' || plan.type === 'cascade_replace') {
-        eventsToSave.push({
+        const movedTarget = {
           ...plan.displacedEvent,
           date: plan.cascadeTargetSlot.date,
           shift: plan.cascadeTargetSlot.shift,
           start_time: SHIFTS[plan.cascadeTargetSlot.shift.toUpperCase()].start,
           end_time: SHIFTS[plan.cascadeTargetSlot.shift.toUpperCase()].end,
-          compensation_log_id: logId
-        });
+          compensation_log_id: logId,
+          is_compensated: true
+        };
+        if (isEventInFuture(movedTarget)) {
+          movedTarget.status = EVENT_STATUS.PENDING;
+          movedTarget.manual_status_override = false;
+        }
+        eventsToSave.push(movedTarget);
         chainSteps.push(
           `Moveu "${plan.displacedEvent.title}" para ${formatDayShort(plan.cascadeTargetSlot.date)}`
         );

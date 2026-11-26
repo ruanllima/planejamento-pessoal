@@ -1,5 +1,5 @@
 /**
- * Gerenciador de Notificações Sobrepostas (Deck) com indicadores numéricos (1), (2)
+ * Gerenciador de Notificações Sobrepostas (Deck) com indicadores numéricos (exibidos apenas quando >= 2)
  * e gesto de deslize direcional (Pointer Events) para descarte fluido.
  */
 export class ToastManager {
@@ -29,7 +29,7 @@ export class ToastManager {
 
     card.innerHTML = `
       <div class="toast-content">
-        <span class="toast-count-badge">(${item.indexNumber})</span>
+        <span class="toast-count-badge hidden"></span>
         <span class="toast-msg">${this._escape(message)}</span>
       </div>
     `;
@@ -72,7 +72,13 @@ export class ToastManager {
     this.items.forEach((item, idx) => {
       const badge = item.el.querySelector('.toast-count-badge');
       if (badge) {
-        badge.textContent = total > 1 ? `(${idx + 1}/${total})` : `(1)`;
+        if (total >= 2) {
+          badge.textContent = `${idx + 1}/${total}`;
+          badge.classList.remove('hidden');
+        } else {
+          badge.textContent = '';
+          badge.classList.add('hidden');
+        }
       }
 
       const depthFromTop = total - 1 - idx;
