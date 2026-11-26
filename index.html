@@ -1,76 +1,160 @@
 <!DOCTYPE html>
-<html lang="pt-BR" data-theme="dark">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0D0F12" id="meta-theme-color" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>ChronosShift</title>
-  <link rel="manifest" href="./manifest.json" />
-  <link rel="icon" type="image/svg+xml" href="./icons/icon-192.svg" />
-  <link rel="apple-touch-icon" href="./icons/icon-192.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./css/variables.css" />
-  <link rel="stylesheet" href="./css/base.css" />
-  <link rel="stylesheet" href="./css/layout.css" />
-  <link rel="stylesheet" href="./css/components.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#141413" />
+  <title>Chronos — Time-Blocking & Compensação</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <nav class="app-nav" aria-label="Navegação Principal">
-      <div class="nav-brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-title">ChronosShift</span>
-      </div>
-      <div class="nav-items" role="tablist">
-        <button class="nav-btn active" data-tab="agenda" role="tab" aria-selected="true">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <span>Agenda</span>
-        </button>
-        <button class="nav-btn" data-tab="compensations" role="tab" aria-selected="false">
-          <div class="nav-icon-wrap">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-            <span class="nav-badge hidden" id="comp-badge">0</span>
+  <div id="app" class="app-shell">
+    <!-- Top Header Fixo (Mês/Ano fixo + Controles de Navegação e View) -->
+    <header class="app-header">
+      <div class="header-top-row">
+        <div class="month-anchor">
+          <h1 id="fixed-month-year" class="fixed-month-title">Novembro 2026</h1>
+        </div>
+        <div class="header-actions">
+          <button id="btn-today" class="btn-ghost btn-sm" title="Ir para hoje">Hoje</button>
+          <div class="nav-arrows">
+            <button id="btn-prev" class="btn-icon" aria-label="Anterior">&#8249;</button>
+            <button id="btn-next" class="btn-icon" aria-label="Próximo">&#8250;</button>
           </div>
-          <span>Compensações</span>
-        </button>
-        <button class="nav-btn" data-tab="recurrences" role="tab" aria-selected="false">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-          <span>Recorrências</span>
-        </button>
-        <button class="nav-btn" data-tab="settings" role="tab" aria-selected="false">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-          <span>Ajustes</span>
-        </button>
+          <button id="btn-settings" class="btn-icon" aria-label="Ajustes e Categorias" title="Ajustes e Categorias">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
-    </nav>
 
-    <main class="app-main" id="app-main">
-      <section id="view-agenda" class="view-section active" aria-label="Agenda"></section>
-      <section id="view-compensations" class="view-section hidden" aria-label="Compensações"></section>
-      <section id="view-recurrences" class="view-section hidden" aria-label="Recorrências"></section>
-      <section id="view-settings" class="view-section hidden" aria-label="Categorias e Ajustes"></section>
+      <!-- Barra de Troca de Visualização (Dia / Semana / Mês) -->
+      <div class="view-switcher-bar">
+        <div class="segmented-control" role="tablist">
+          <button class="seg-btn active" data-view="day" role="tab" aria-selected="true">Dia</button>
+          <button class="seg-btn" data-view="week" role="tab" aria-selected="false">Semana</button>
+          <button class="seg-btn" data-view="month" role="tab" aria-selected="false">Mês</button>
+        </div>
+        <button id="btn-new-event" class="btn-primary btn-sm">+ Novo</button>
+      </div>
+    </header>
+
+    <!-- Divisória Universal entre Header e Visualizações -->
+    <section id="universal-subheader" class="universal-subheader" aria-live="polite">
+      <!-- Preenchido dinamicamente conforme a visualização (Dia, Semana ou Mês) -->
+    </section>
+
+    <!-- Área Principal das Visualizações -->
+    <main id="view-container" class="view-container">
+      <!-- Renderizado via JS -->
     </main>
-  </div>
 
-  <div class="modal-backdrop hidden" id="modal-backdrop" aria-hidden="true">
-    <div class="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <div class="modal-handle" aria-hidden="true"></div>
-      <div class="modal-header">
-        <h2 id="modal-title" class="modal-title">Título</h2>
-        <button type="button" class="btn-icon" id="modal-close" aria-label="Fechar">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+    <!-- Toast Stack Container (Empilhamento + Swipe + Contador >= 2) -->
+    <div id="toast-deck" class="toast-deck" aria-live="polite"></div>
+
+    <!-- Modal: Criar / Editar Compromisso -->
+    <div id="modal-event" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modal-event-title">Novo Compromisso</h2>
+          <button class="btn-icon close-modal" data-close="modal-event">&times;</button>
+        </div>
+        <form id="form-event" class="modal-body">
+          <input type="hidden" id="ev-id" />
+          <div class="form-group">
+            <label for="ev-title">Título</label>
+            <input type="text" id="ev-title" required placeholder="Ex.: Revisão de Arquitetura Java" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ev-category">Categoria</label>
+              <select id="ev-category" required></select>
+            </div>
+            <div class="form-group">
+              <label for="ev-date">Data</label>
+              <input type="date" id="ev-date" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ev-start">Início</label>
+              <input type="time" id="ev-start" required />
+            </div>
+            <div class="form-group">
+              <label for="ev-end">Término</label>
+              <input type="time" id="ev-end" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="ev-recurrence">Recorrência</label>
+            <select id="ev-recurrence">
+              <option value="none">Não se repete</option>
+              <option value="daily">Diária</option>
+              <option value="weekdays">Dias úteis (Seg a Sex)</option>
+              <option value="weekly">Semanal</option>
+            </select>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="btn-delete-event" class="btn-danger hidden">Excluir</button>
+            <div class="footer-right">
+              <button type="button" class="btn-ghost close-modal" data-close="modal-event">Cancelar</button>
+              <button type="submit" class="btn-primary">Salvar</button>
+            </div>
+          </div>
+        </form>
       </div>
-      <div class="modal-body" id="modal-body"></div>
+    </div>
+
+    <!-- Modal: Prevenção de Erros de Exclusão (Nielsen) -->
+    <div id="modal-delete-confirm" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="modal-card modal-sm">
+        <div class="modal-header">
+          <h2>Confirmar Exclusão</h2>
+          <button class="btn-icon close-modal" data-close="modal-delete-confirm">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p id="delete-confirm-text" class="confirm-desc">Deseja excluir este compromisso?</p>
+          <div id="recurring-delete-options" class="delete-options hidden">
+            <button type="button" id="btn-del-single" class="btn-outline-danger full-width">
+              Excluir apenas esta ocorrência
+            </button>
+            <button type="button" id="btn-del-series" class="btn-danger full-width">
+              Excluir toda a série recorrente
+            </button>
+          </div>
+          <div id="single-delete-options" class="modal-footer">
+            <button type="button" class="btn-ghost close-modal" data-close="modal-delete-confirm">Cancelar</button>
+            <button type="button" id="btn-del-confirm-ok" class="btn-danger">Excluir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Ajustes & Categorias -->
+    <div id="modal-settings" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>Ajustes e Categorias</h2>
+          <button class="btn-icon close-modal" data-close="modal-settings">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="section-hint">Configure a hierarquia de compensação. Quando um compromisso de alta prioridade não é realizado, ele pode deslocar o alvo configurado abaixo.</p>
+          <div id="categories-list" class="categories-list"></div>
+          <div class="modal-footer">
+            <button type="button" id="btn-reset-demo" class="btn-ghost btn-sm">Restaurar Dados Base</button>
+            <button type="button" class="btn-primary close-modal" data-close="modal-settings">Concluir</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="toast-stack-host" id="toast-container" aria-live="polite"></div>
-
-  <script type="module" src="./js/app.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
