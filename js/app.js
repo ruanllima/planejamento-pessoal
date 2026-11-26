@@ -74,10 +74,23 @@ class AppController {
     }, 60000);
   }
 
-  _registerServiceWorker() {
+_registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch((err) => {
-        console.warn('Service Worker não registrado:', err);
+      navigator.serviceWorker
+        .register('./sw.js', { updateViaCache: 'none' })
+        .then((reg) => {
+          reg.update();
+        })
+        .catch((err) => {
+          console.warn('Service Worker não registrado:', err);
+        });
+
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
       });
     }
   }

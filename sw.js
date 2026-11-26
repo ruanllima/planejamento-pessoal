@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chronosshift-v1.4.0';
+const CACHE_NAME = 'chronosshift-v1.5.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -44,22 +44,22 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Network-First: busca sempre a versão atualizada online; se offline, cai para o cache
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
-        return (
-          cached ||
-          fetch(event.request).then((response) => {
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-            return response;
-          })
-        );
-      })
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
   }
 });
