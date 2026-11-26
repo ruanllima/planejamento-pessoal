@@ -18,6 +18,7 @@ class AppController {
     this.recurrenceService = new RecurrenceService(this.repo);
     this.compensationEngine = new CompensationEngine(this.repo);
     this.seedService = new SeedService(this.repo);
+
     this.modal = new ModalManager();
     this.toast = new ToastManager('toast-container');
 
@@ -30,7 +31,8 @@ class AppController {
       recurrenceService: this.recurrenceService,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) =>
+        this.toast.show(msg, actionText, onAction)
     });
 
     this.compensationsView = new CompensationsView({
@@ -39,7 +41,8 @@ class AppController {
       compensationEngine: this.compensationEngine,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) =>
+        this.toast.show(msg, actionText, onAction)
     });
 
     this.recurrencesView = new RecurrencesView({
@@ -47,7 +50,8 @@ class AppController {
       repo: this.repo,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) =>
+        this.toast.show(msg, actionText, onAction)
     });
 
     this.settingsView = new SettingsView({
@@ -55,63 +59,77 @@ class AppController {
       repo: this.repo,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) =>
+        this.toast.show(msg, actionText, onAction)
     });
   }
 
   async init() {
     this._registerServiceWorker();
+
     await this.seedService.seedIfNeeded();
 
     const settings = await this.repo.getSettings();
-    document.documentElement.setAttribute('data-theme', settings.theme || 'dark');
+
+    document.documentElement.setAttribute(
+      'data-theme',
+      settings.theme || 'dark'
+    );
 
     this._bindNavigation();
+
     await this.refreshAll();
 
     setInterval(async () => {
       const updated = await this.lifecycleService.syncStatuses();
-      if (updated > 0) await this.refreshAll();
+
+      if (updated > 0) {
+        await this.refreshAll();
+      }
     }, 60000);
   }
 
-_registerServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('./sw.js', { updateViaCache: 'none' })
-<<<<<<< HEAD
-        .then((reg) => {
-          reg.update();
-        })
-=======
-        .then((reg) => reg.update())
->>>>>>> 48a3134 (fix(agenda,engine): enforce single event per shift, protect fixed church slots, and add undoable delete confirmations)
-        .catch((err) => {
-          console.warn('Service Worker não registrado:', err);
-        });
-
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
+  _registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) {
+      return;
     }
+
+    navigator.serviceWorker
+      .register('./sw.js', { updateViaCache: 'none' })
+      .then((registration) => registration.update())
+      .catch((error) => {
+        console.warn('Service Worker não registrado:', error);
+      });
+
+    let refreshing = false;
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) {
+        return;
+      }
+
+      refreshing = true;
+      window.location.reload();
+    });
   }
 
   _bindNavigation() {
-    document.querySelectorAll('.nav-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        this.activeTab = btn.dataset.tab;
-        document.querySelectorAll('.nav-btn').forEach((b) => {
-          const isTarget = b.dataset.tab === this.activeTab;
-          b.classList.toggle('active', isTarget);
-          b.setAttribute('aria-selected', String(isTarget));
+    document.querySelectorAll('.nav-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        this.activeTab = button.dataset.tab;
+
+        document.querySelectorAll('.nav-btn').forEach((navButton) => {
+          const isTarget = navButton.dataset.tab === this.activeTab;
+
+          navButton.classList.toggle('active', isTarget);
+          navButton.setAttribute('aria-selected', String(isTarget));
         });
 
-        document.querySelectorAll('.view-section').forEach((sec) => {
-          sec.classList.toggle('hidden', sec.id !== `view-${this.activeTab}`);
+        document.querySelectorAll('.view-section').forEach((section) => {
+          section.classList.toggle(
+            'hidden',
+            section.id !== `view-${this.activeTab}`
+          );
         });
 
         this.refreshAll();
@@ -121,29 +139,52 @@ _registerServiceWorker() {
 
   async refreshAll() {
     await this.recurrenceService.enforceSingleEventPerSlot();
+
     await this.lifecycleService.syncStatuses();
+
     await this._updateCompensationBadge();
 
     const appMain = document.getElementById('app-main');
+
     if (appMain) {
-      appMain.classList.toggle('has-agenda-header', this.activeTab === 'agenda');
+      appMain.classList.toggle(
+        'has-agenda-header',
+        this.activeTab === 'agenda'
+      );
     }
 
-    if (this.activeTab === 'agenda') {
-      await this.agendaView.render();
-    } else if (this.activeTab === 'compensations') {
-      await this.compensationsView.render(this.agendaView.anchorDate);
-    } else if (this.activeTab === 'recurrences') {
-      await this.recurrencesView.render();
-    } else if (this.activeTab === 'settings') {
-      await this.settingsView.render();
+    switch (this.activeTab) {
+      case 'agenda':
+        await this.agendaView.render();
+        break;
+
+      case 'compensations':
+        await this.compensationsView.render(this.agendaView.anchorDate);
+        break;
+
+      case 'recurrences':
+        await this.recurrencesView.render();
+        break;
+
+      case 'settings':
+        await this.settingsView.render();
+        break;
     }
   }
 
   async _updateCompensationBadge() {
     const logs = await this.repo.getCompensationLogs();
-    const pendingCount = logs.filter((l) => l.status === 'pending_review').length;
+
+    const pendingCount = logs.filter(
+      (log) => log.status === 'pending_review'
+    ).length;
+
     const badge = document.getElementById('comp-badge');
+
+    if (!badge) {
+      return;
+    }
+
     if (pendingCount > 0) {
       badge.textContent = String(pendingCount);
       badge.classList.remove('hidden');
