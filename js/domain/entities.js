@@ -39,8 +39,9 @@ export function createCategory({
   allowed_shifts = ['morning', 'afternoon', 'night'],
   priority_order = 0,
   is_relocatable = true,
-  is_sacrificeable = true,
+  in_global_list = false,
   // Compatibilidade retroativa com backups antigos
+  is_sacrificeable = undefined,
   is_compensable = undefined,
   created_at = nowISO(),
   updated_at = nowISO()
@@ -52,6 +53,13 @@ export function createCategory({
         ? is_compensable
         : true;
 
+  const globalListFlag =
+    typeof in_global_list === 'boolean'
+      ? in_global_list
+      : typeof is_sacrificeable === 'boolean'
+        ? is_sacrificeable
+        : false;
+
   return {
     id,
     name: name.trim(),
@@ -60,7 +68,7 @@ export function createCategory({
     allowed_shifts: [...allowed_shifts],
     priority_order: Number.isFinite(Number(priority_order)) ? Number(priority_order) : 0,
     is_relocatable: Boolean(relocatableFlag),
-    is_sacrificeable: Boolean(is_sacrificeable),
+    in_global_list: Boolean(globalListFlag),
     created_at,
     updated_at
   };
