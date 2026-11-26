@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chronosshift-v1.0.0';
+const CACHE_NAME = 'chronosshift-v1.1.0';
 const STATIC_ASSETS = [
   './',
   './index.html',

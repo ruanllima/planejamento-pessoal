@@ -1,4 +1,5 @@
 const WEEKDAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const WEEKDAYS_FULL = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 const MONTHS_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
@@ -55,6 +56,10 @@ export function getMonthGridDates(year, monthIndex) {
 export function formatDayShort(dateStr) {
   const d = parseDateStr(dateStr);
   return `${WEEKDAYS_SHORT[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export function getWeekdayFull(dateStr) {
+  return WEEKDAYS_FULL[parseDateStr(dateStr).getDay()];
 }
 
 export function getWeekdayLabel(dateStr) {

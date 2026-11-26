@@ -9,6 +9,3 @@ Como o projeto utiliza módulos ES6 (`type="module"`) e Service Worker (`sw.js`)
 - **VS Code:** Extensão *Live Server*
 
 Acesse `http://localhost:8080` no navegador ou instale como PWA no celular/desktop.
-
-## Migração Futura para Supabase
-Crie `js/repositories/SupabaseAdapter.js` estendendo `StorageRepository` (`js/repositories/StorageRepository.js`) e substitua `new LocalStorageAdapter()` em `js/app.js`. Todas as entidades já operam com `UUID v4`, timestamps `ISO 8601` e chaves estrangeiras explícitas.
