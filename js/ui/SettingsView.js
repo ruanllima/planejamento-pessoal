@@ -14,13 +14,12 @@ export class SettingsView {
       this.repo.getCategories(),
       this.repo.getSettings()
     ]);
-    const catMap = new Map(categories.map((c) => [c.id, c]));
 
     this.container.innerHTML = `
       <header class="view-header">
         <div>
           <h1 class="view-title">Categorias e Ajustes</h1>
-          <p class="view-subtitle">Hierarquia de sacrifício, restrições de turno e preferências</p>
+          <p class="view-subtitle">Lista global de prioridade, turnos permitidos e regras de realocação</p>
         </div>
         <button type="button" class="btn btn-primary" id="btn-new-cat">+ Nova Categoria</button>
       </header>
@@ -46,7 +45,37 @@ export class SettingsView {
         </div>
       </div>
 
-      <h2 class="field-label" style="margin-bottom:10px;">Categorias e Hierarquia de Substituição</h2>
+      <div class="panel-card">
+        <h2 class="field-label" style="margin-bottom:4px;">Lista Global de Busca e Prioridade</h2>
+        <p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:12px;">
+          Ordem de busca ao realocar (do menor peso para o maior). A busca começa por turnos vazios e para ao atingir a própria categoria.
+        </p>
+        <div class="priority-list" id="global-priority-list">
+          <div class="priority-item" style="opacity:0.75;">
+            <span><strong>1.</strong> Turno vazio (none)</span>
+            <span style="font-size:0.72rem; color:var(--text-muted);">Primeiro alvo</span>
+          </div>
+          ${categories
+            .map(
+              (cat, idx) => `
+              <div class="priority-item">
+                <span style="display:inline-flex; align-items:center; gap:8px;">
+                  <strong>${idx + 2}.</strong>
+                  <span class="cat-dot" style="--cat-color:${cat.color};"></span>
+                  <span>${this._escape(cat.name)}</span>
+                </span>
+                <div class="priority-controls">
+                  <button type="button" class="btn-icon btn-global-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''} aria-label="Diminuir peso">↑</button>
+                  <button type="button" class="btn-icon btn-global-down" data-idx="${idx}" ${idx === categories.length - 1 ? 'disabled' : ''} aria-label="Aumentar peso">↓</button>
+                </div>
+              </div>
+            `
+            )
+            .join('')}
+        </div>
+      </div>
+
+      <h2 class="field-label" style="margin-bottom:10px;">Categorias (${categories.length})</h2>
       <div class="log-list" id="cat-list"></div>
 
       <div class="panel-card" style="margin-top:20px;">
@@ -57,7 +86,7 @@ export class SettingsView {
             Importar JSON
             <input type="file" id="input-import" accept=".json" class="hidden" />
           </label>
-          <button type="button" class="btn btn-danger" id="btn-clear-all">Limpar Tudo (1 Clique)</button>
+          <button type="button" class="btn btn-danger" id="btn-clear-all">Limpar Tudo</button>
         </div>
       </div>
     `;
@@ -67,13 +96,8 @@ export class SettingsView {
     const catListEl = this.container.querySelector('#cat-list');
     for (const cat of categories) {
       const allowedStr = cat.allowed_shifts.map((s) => SHIFTS[s.toUpperCase()].label).join(', ');
-      const priorityStr =
-        cat.substitution_priority.length > 0
-          ? cat.substitution_priority
-              .map((id) => catMap.get(id)?.name)
-              .filter(Boolean)
-              .join(', ')
-          : 'Nenhum';
+      const relocatableStr = cat.is_relocatable ? 'Sim' : 'Não';
+      const sacrificeableStr = cat.is_sacrificeable ? 'Sim' : 'Não';
 
       const card = document.createElement('div');
       card.className = 'cat-struct-card';
@@ -86,15 +110,18 @@ export class SettingsView {
         <div class="cat-struct-rows">
           <div class="cat-struct-row">
             <span class="cat-struct-key">Meta semanal</span>
-            <span class="cat-struct-val">${cat.weekly_goal ? `${cat.weekly_goal} turnos` : 'Livre'}</span>
+            <span class="cat-struct-val">${cat.weekly_goal ? `${cat.weekly_goal} turnos` : 'Sem meta'}</span>
           </div>
           <div class="cat-struct-row">
             <span class="cat-struct-key">Turnos permitidos</span>
             <span class="cat-struct-val">${allowedStr}</span>
           </div>
           <div class="cat-struct-row">
-            <span class="cat-struct-key">Alvos de troca</span>
-            <span class="cat-struct-val">${this._escape(priorityStr)}</span>
+            <span class="cat-struct-key">Regras de realocação</span>
+            <div class="cat-rule-pills" style="margin-top:2px;">
+              <span class="cat-rule-pill">Realocável: ${relocatableStr}</span>
+              <span class="cat-rule-pill">Sacrificável: ${sacrificeableStr}</span>
+            </div>
           </div>
         </div>
       `;
@@ -120,6 +147,28 @@ export class SettingsView {
         const theme = btn.dataset.themeOpt;
         document.documentElement.setAttribute('data-theme', theme);
         await this.repo.saveSettings({ theme });
+        await this.onStateChange();
+      });
+    });
+
+    this.container.querySelectorAll('.btn-global-up').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.dataset.idx);
+        const reordered = [...categories];
+        [reordered[idx - 1], reordered[idx]] = [reordered[idx], reordered[idx - 1]];
+        const updated = reordered.map((c, i) => ({ ...c, priority_order: i }));
+        await this.repo.saveCategoriesBulk(updated);
+        await this.onStateChange();
+      });
+    });
+
+    this.container.querySelectorAll('.btn-global-down').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const idx = Number(btn.dataset.idx);
+        const reordered = [...categories];
+        [reordered[idx + 1], reordered[idx]] = [reordered[idx], reordered[idx + 1]];
+        const updated = reordered.map((c, i) => ({ ...c, priority_order: i }));
+        await this.repo.saveCategoriesBulk(updated);
         await this.onStateChange();
       });
     });
@@ -152,91 +201,51 @@ export class SettingsView {
       }
     });
 
-    this.container.querySelector('#btn-clear-all').addEventListener('click', async () => {
-      await this.repo.clearAll();
-      this.showToast('Todos os dados foram limpos.');
-      await this.onStateChange();
+    this.container.querySelector('#btn-clear-all').addEventListener('click', () => {
+      const wrap = document.createElement('div');
+      wrap.className = 'form-grid';
+      wrap.innerHTML = `
+        <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+          Tem certeza que deseja limpar <strong>todos os compromissos, categorias, recorrências e histórico</strong>?
+        </p>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="button" class="btn btn-secondary" style="flex:1;" id="clear-cancel">Cancelar</button>
+          <button type="button" class="btn btn-danger" style="flex:1;" id="clear-confirm">Limpar Tudo</button>
+        </div>
+      `;
+
+      wrap.querySelector('#clear-cancel').addEventListener('click', () => this.modal.close());
+      wrap.querySelector('#clear-confirm').addEventListener('click', async () => {
+        const snapshotBackup = await this.repo.exportAll();
+        await this.repo.clearAll();
+        this.modal.close();
+
+        this.showToast('Todos os dados foram limpos.', 'Desfazer', async () => {
+          await this.repo.importAll(snapshotBackup);
+          await this.onStateChange();
+        });
+
+        await this.onStateChange();
+      });
+
+      this.modal.open('Confirmar limpeza total', wrap);
     });
   }
 
   _openCategoryModal(catDraft, allCategories) {
     const isEdit = Boolean(catDraft);
-    const draft = catDraft || createCategory({ name: '', color: '#3B82F6' });
-    const otherCats = allCategories.filter((c) => c.id !== draft.id);
-
-    let priorityIds = [...draft.substitution_priority].filter((id) =>
-      otherCats.some((c) => c.id === id)
-    );
+    const draft =
+      catDraft ||
+      createCategory({
+        name: '',
+        color: '#3B82F6',
+        priority_order: allCategories.length,
+        is_relocatable: true,
+        is_sacrificeable: true
+      });
 
     const form = document.createElement('form');
     form.className = 'form-grid';
-
-    const renderPriorityEditor = () => {
-      const listContainer = form.querySelector('#prio-editor');
-      const availableToAdd = otherCats.filter((c) => !priorityIds.includes(c.id));
-
-      listContainer.innerHTML = `
-        <div class="priority-list">
-          ${priorityIds
-            .map((id, idx) => {
-              const target = otherCats.find((c) => c.id === id);
-              return `
-                <div class="priority-item">
-                  <span>${this._escape(target.name)}</span>
-                  <div class="priority-controls">
-                    <button type="button" class="btn-icon btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''}>↑</button>
-                    <button type="button" class="btn-icon btn-down" data-idx="${idx}" ${idx === priorityIds.length - 1 ? 'disabled' : ''}>↓</button>
-                    <button type="button" class="btn-icon btn-rm" data-idx="${idx}">✕</button>
-                  </div>
-                </div>
-              `;
-            })
-            .join('')}
-        </div>
-        ${
-          availableToAdd.length > 0
-            ? `
-          <div style="display:flex; gap:6px; margin-top:8px;">
-            <select class="input-control" id="add-prio-select">
-              ${availableToAdd.map((c) => `<option value="${c.id}">${this._escape(c.name)}</option>`).join('')}
-            </select>
-            <button type="button" class="btn btn-secondary" id="btn-add-prio">+ Adicionar</button>
-          </div>`
-            : ''
-        }
-      `;
-
-      listContainer.querySelectorAll('.btn-up').forEach((b) =>
-        b.addEventListener('click', () => {
-          const i = Number(b.dataset.idx);
-          [priorityIds[i - 1], priorityIds[i]] = [priorityIds[i], priorityIds[i - 1]];
-          renderPriorityEditor();
-        })
-      );
-      listContainer.querySelectorAll('.btn-down').forEach((b) =>
-        b.addEventListener('click', () => {
-          const i = Number(b.dataset.idx);
-          [priorityIds[i + 1], priorityIds[i]] = [priorityIds[i], priorityIds[i + 1]];
-          renderPriorityEditor();
-        })
-      );
-      listContainer.querySelectorAll('.btn-rm').forEach((b) =>
-        b.addEventListener('click', () => {
-          priorityIds.splice(Number(b.dataset.idx), 1);
-          renderPriorityEditor();
-        })
-      );
-      const addBtn = listContainer.querySelector('#btn-add-prio');
-      if (addBtn) {
-        addBtn.addEventListener('click', () => {
-          const sel = listContainer.querySelector('#add-prio-select').value;
-          if (sel) {
-            priorityIds.push(sel);
-            renderPriorityEditor();
-          }
-        });
-      }
-    };
 
     form.innerHTML = `
       <div class="form-grid form-grid-2">
@@ -250,16 +259,24 @@ export class SettingsView {
         </div>
       </div>
 
+      <div class="field-group">
+        <label class="field-label" for="cat-goal">Meta Semanal de Turnos (Opcional)</label>
+        <input class="input-control" id="cat-goal" type="number" min="1" max="21" value="${draft.weekly_goal || ''}" placeholder="Sem meta" />
+      </div>
+
       <div class="form-grid form-grid-2">
         <div class="field-group">
-          <label class="field-label" for="cat-goal">Meta Semanal de Turnos</label>
-          <input class="input-control" id="cat-goal" type="number" min="1" max="21" value="${draft.weekly_goal || ''}" placeholder="Opcional" />
+          <label class="field-label" for="cat-reloc">Realocável automaticamente</label>
+          <select class="input-control" id="cat-reloc">
+            <option value="true" ${draft.is_relocatable ? 'selected' : ''}>Sim</option>
+            <option value="false" ${!draft.is_relocatable ? 'selected' : ''}>Não</option>
+          </select>
         </div>
         <div class="field-group">
-          <label class="field-label" for="cat-comp">Compensação Automática</label>
-          <select class="input-control" id="cat-comp">
-            <option value="true" ${draft.is_compensable ? 'selected' : ''}>Ativada</option>
-            <option value="false" ${!draft.is_compensable ? 'selected' : ''}>Desativada</option>
+          <label class="field-label" for="cat-sac">Sacrificável automaticamente</label>
+          <select class="input-control" id="cat-sac">
+            <option value="true" ${draft.is_sacrificeable ? 'selected' : ''}>Sim</option>
+            <option value="false" ${!draft.is_sacrificeable ? 'selected' : ''}>Não</option>
           </select>
         </div>
       </div>
@@ -275,11 +292,6 @@ export class SettingsView {
         </div>
       </div>
 
-      <div class="field-group">
-        <span class="field-label">Alvos de Substituição (Ordem de prioridade)</span>
-        <div id="prio-editor"></div>
-      </div>
-
       <div style="display:flex; gap:8px; margin-top:8px;">
         <button type="submit" class="btn btn-primary" style="flex:1;">Salvar Categoria</button>
         ${isEdit ? `<button type="button" class="btn btn-danger" id="btn-del-cat">Excluir</button>` : ''}
@@ -289,8 +301,6 @@ export class SettingsView {
     form.querySelectorAll('#cat-shifts .pill-toggle').forEach((p) =>
       p.addEventListener('click', () => p.classList.toggle('selected'))
     );
-
-    renderPriorityEditor();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -307,9 +317,9 @@ export class SettingsView {
         name: form.querySelector('#cat-name').value,
         color: form.querySelector('#cat-color').value,
         weekly_goal: form.querySelector('#cat-goal').value || null,
-        is_compensable: form.querySelector('#cat-comp').value === 'true',
-        allowed_shifts,
-        substitution_priority: priorityIds
+        is_relocatable: form.querySelector('#cat-reloc').value === 'true',
+        is_sacrificeable: form.querySelector('#cat-sac').value === 'true',
+        allowed_shifts
       });
 
       await this.repo.saveCategory(saved);
@@ -319,11 +329,37 @@ export class SettingsView {
     });
 
     if (isEdit) {
-      form.querySelector('#btn-del-cat').addEventListener('click', async () => {
-        await this.repo.deleteCategory(draft.id);
-        this.modal.close();
-        this.showToast('Categoria excluída.');
-        await this.onStateChange();
+      form.querySelector('#btn-del-cat').addEventListener('click', () => {
+        const confirmWrap = document.createElement('div');
+        confirmWrap.className = 'form-grid';
+        confirmWrap.innerHTML = `
+          <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+            Deseja realmente excluir a categoria <strong>${this._escape(draft.name)}</strong>?
+          </p>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button type="button" class="btn btn-secondary" style="flex:1;" id="cat-del-cancel">Cancelar</button>
+            <button type="button" class="btn btn-danger" style="flex:1;" id="cat-del-confirm">Excluir</button>
+          </div>
+        `;
+
+        confirmWrap.querySelector('#cat-del-cancel').addEventListener('click', () => {
+          this._openCategoryModal(draft, allCategories);
+        });
+
+        confirmWrap.querySelector('#cat-del-confirm').addEventListener('click', async () => {
+          const snapshotCat = { ...draft };
+          await this.repo.deleteCategory(draft.id);
+          this.modal.close();
+
+          this.showToast(`Categoria "${snapshotCat.name}" excluída.`, 'Desfazer', async () => {
+            await this.repo.saveCategory(snapshotCat);
+            await this.onStateChange();
+          });
+
+          await this.onStateChange();
+        });
+
+        this.modal.open('Confirmar exclusão de categoria', confirmWrap);
       });
     }
 

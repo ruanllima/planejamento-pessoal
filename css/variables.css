@@ -22,9 +22,12 @@
 
   --status-pending: #F59E0B;
   --status-pending-bg: rgba(245, 158, 11, 0.10);
+  --status-pending-bg: rgba(245, 158, 11, 0.10);
   --status-done: #10B981;
   --status-done-bg: rgba(16, 185, 129, 0.10);
+  --status-done-bg: rgba(16, 185, 129, 0.10);
   --status-failed: #EF4444;
+  --status-failed-bg: rgba(239, 68, 68, 0.14);
   --status-failed-bg: rgba(239, 68, 68, 0.14);
 
   --transition-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
@@ -49,6 +52,12 @@
 
   --text-date-muted: #CBD5E1;
   --today-card-border: #7DD3FC;
+
+  --header-band-bg: #13161C;
+  --header-band-border: #232833;
+
+  --text-date-muted: #CBD5E1;
+  --today-card-border: rgba(100, 116, 139, 0.62);
 
   --border-subtle: #262C36;
   --border-strong: #374151;
@@ -83,6 +92,15 @@
 
   --text-date-muted: #334155;
   --today-card-border: #38BDF8;
+  --bg-surface-header: #F3F5F8;
+  --bg-elevated: #F1F3F6;
+  --bg-hover: #E5E8EE;
+
+  --header-band-bg: #ECEFF4;
+  --header-band-border: #DCE2EC;
+
+  --text-date-muted: #334155;
+  --today-card-border: rgba(100, 116, 139, 0.55);
 
   --border-subtle: #DCE2EC;
   --border-strong: #CBD2DF;

@@ -25,23 +25,29 @@ export class SeedService {
       color: '#64748B',
       weekly_goal: null,
       allowed_shifts: ['morning', 'afternoon', 'night'],
-      is_compensable: false
+      priority_order: 0,
+      is_relocatable: false,
+      is_sacrificeable: true
     });
 
     const catLazer = createCategory({
       name: 'Lazer',
       color: '#06B6D4',
-      weekly_goal: 2,
+      weekly_goal: null,
       allowed_shifts: ['afternoon', 'night'],
-      is_compensable: false
+      priority_order: 1,
+      is_relocatable: false,
+      is_sacrificeable: false
     });
 
-    const catNamorada = createCategory({
-      name: 'Namorada',
+    const catRafa = createCategory({
+      name: 'Rafa',
       color: '#EC4899',
-      weekly_goal: 2,
+      weekly_goal: null,
       allowed_shifts: ['afternoon', 'night'],
-      is_compensable: true
+      priority_order: 2,
+      is_relocatable: false,
+      is_sacrificeable: false
     });
 
     const catEstudo = createCategory({
@@ -49,31 +55,32 @@ export class SeedService {
       color: '#8B5CF6',
       weekly_goal: 4,
       allowed_shifts: ['morning', 'afternoon', 'night'],
-      is_compensable: true
+      priority_order: 3,
+      is_relocatable: true,
+      is_sacrificeable: true
     });
 
     const catTrabalho = createCategory({
       name: 'Trabalho',
       color: '#2563EB',
-      weekly_goal: 4,
+      weekly_goal: 5,
       allowed_shifts: ['afternoon', 'night'],
-      is_compensable: true
+      priority_order: 4,
+      is_relocatable: true,
+      is_sacrificeable: true
     });
 
     const catIgreja = createCategory({
       name: 'Igreja',
       color: '#10B981',
-      weekly_goal: 2,
+      weekly_goal: null,
       allowed_shifts: ['morning', 'afternoon', 'night'],
-      is_compensable: true
+      priority_order: 5,
+      is_relocatable: false,
+      is_sacrificeable: false
     });
 
-    catTrabalho.substitution_priority = [catLivre.id, catLazer.id, catNamorada.id, catEstudo.id];
-    catEstudo.substitution_priority = [catLivre.id, catLazer.id];
-    catIgreja.substitution_priority = [catLivre.id, catLazer.id, catNamorada.id, catEstudo.id];
-    catNamorada.substitution_priority = [catLivre.id, catLazer.id];
-
-    const categories = [catTrabalho, catEstudo, catIgreja, catNamorada, catLazer, catLivre];
+    const categories = [catLivre, catLazer, catRafa, catEstudo, catTrabalho, catIgreja];
     for (const c of categories) {
       await this.repo.saveCategory(c);
     }
@@ -91,14 +98,13 @@ export class SeedService {
     const todayStr = toDateStr(now);
     const week = getWeekDates(todayStr);
 
-    // Poucos compromissos estratégicos para teste imediato do Motor de Compensação e Cascata
     const sampleEvents = [
       createEvent({ title: 'Culto Matinal', category_id: catIgreja.id, date: week[0], shift: 'morning', recurrence_id: recIgrejaDomingo.id }),
       createEvent({ title: 'Culto da Noite', category_id: catIgreja.id, date: week[0], shift: 'night', recurrence_id: recIgrejaDomingo.id }),
       createEvent({ title: 'Sprint Backend', category_id: catTrabalho.id, date: week[1], shift: 'afternoon' }),
       createEvent({ title: 'Estudo Arquitetura', category_id: catEstudo.id, date: week[2], shift: 'morning' }),
       createEvent({ title: 'Tempo Livre', category_id: catLivre.id, date: week[2], shift: 'afternoon' }),
-      createEvent({ title: 'Jantar com Namorada', category_id: catNamorada.id, date: week[3], shift: 'night' }),
+      createEvent({ title: 'Sair com Rafa', category_id: catRafa.id, date: week[3], shift: 'night' }),
       createEvent({ title: 'Série e Descanso', category_id: catLazer.id, date: week[4], shift: 'night' })
     ];
 

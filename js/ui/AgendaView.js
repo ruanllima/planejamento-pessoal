@@ -31,6 +31,7 @@ export class AgendaView {
 
     this.viewMode = 'week';
     this.anchorDate = toDateStr(new Date());
+    this._scrollToTodayPending = false;
   }
 
   async render() {
@@ -83,11 +84,20 @@ export class AgendaView {
 
     const contentEl = this.container.querySelector('#agenda-content');
     if (this.viewMode === 'day') {
-      this._renderDayView(contentEl, this.anchorDate, events, catMap, settings, todayStr);
+      this._renderDayView(contentEl, this.anchorDate, events, catMap, settings);
     } else if (this.viewMode === 'week') {
       this._renderWeekView(contentEl, visibleDates, events, catMap, settings, todayStr);
+      if (this._scrollToTodayPending) {
+        this._scrollToTodayPending = false;
+        const todayCard = contentEl.querySelector('.day-row-card.is-today');
+        if (todayCard) {
+          requestAnimationFrame(() => {
+            todayCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+      }
     } else {
-      this._renderMonthView(contentEl, events, catMap, settings, todayStr);
+      this._renderMonthView(contentEl, events, categories, catMap, settings, todayStr);
     }
   }
 
@@ -96,7 +106,6 @@ export class AgendaView {
     return `${getMonthName(d.getMonth())} ${d.getFullYear()}`;
   }
 
-  // Informações coadjuvantes menores ao lado de Mês Ano (apenas em Dia e Semana; Mês fica vazio)
   _renderHeaderCoadjuvants(todayStr) {
     if (this.viewMode === 'day') {
       const weekdayFull = getWeekdayFull(this.anchorDate);
@@ -139,6 +148,9 @@ export class AgendaView {
 
     this.container.querySelector('#nav-today').addEventListener('click', () => {
       this.anchorDate = toDateStr(new Date());
+      if (this.viewMode === 'week') {
+        this._scrollToTodayPending = true;
+      }
       this.render();
     });
 
@@ -172,6 +184,7 @@ export class AgendaView {
     for (const dateStr of weekDates) {
       const dayCard = document.createElement('article');
       dayCard.className = `day-row-card ${dateStr === todayStr ? 'is-today' : ''}`;
+      dayCard.dataset.date = dateStr;
       const d = parseDateStr(dateStr);
       const dateLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 
@@ -187,7 +200,7 @@ export class AgendaView {
 
       for (const shiftId of SHIFT_ORDER) {
         const shiftMeta = SHIFTS[shiftId.toUpperCase()];
-        const slotEvents = events.filter((e) => e.date === dateStr && e.shift === shiftId);
+        const slotEvent = events.find((e) => e.date === dateStr && e.shift === shiftId);
 
         const slotWrap = document.createElement('div');
         slotWrap.className = 'shift-slot';
@@ -197,7 +210,7 @@ export class AgendaView {
           </div>
         `;
 
-        if (slotEvents.length === 0) {
+        if (!slotEvent) {
           const ghost = document.createElement('button');
           ghost.type = 'button';
           ghost.className = 'slot-ghost';
@@ -208,9 +221,7 @@ export class AgendaView {
           });
           slotWrap.appendChild(ghost);
         } else {
-          for (const ev of slotEvents) {
-            slotWrap.appendChild(this._buildEventCard(ev, catMap.get(ev.category_id), settings));
-          }
+          slotWrap.appendChild(this._buildEventCard(slotEvent, catMap.get(slotEvent.category_id), settings));
         }
 
         stack.appendChild(slotWrap);
@@ -222,24 +233,23 @@ export class AgendaView {
     container.appendChild(list);
   }
 
-  _renderDayView(container, dateStr, events, catMap, settings, todayStr) {
+  _renderDayView(container, dateStr, events, catMap, settings) {
     const list = document.createElement('div');
     list.className = 'day-single-list';
-    const isToday = dateStr === todayStr;
 
     for (const shiftId of SHIFT_ORDER) {
       const shiftMeta = SHIFTS[shiftId.toUpperCase()];
-      const slotEvents = events.filter((e) => e.date === dateStr && e.shift === shiftId);
+      const slotEvent = events.find((e) => e.date === dateStr && e.shift === shiftId);
 
       const card = document.createElement('div');
-      card.className = `day-single-card ${isToday ? 'is-today' : ''}`;
+      card.className = 'day-single-card';
       card.innerHTML = `
         <div class="shift-label">
           <span style="font-size:0.82rem; color:var(--text-primary);">${shiftMeta.label}</span>
         </div>
       `;
 
-      if (slotEvents.length === 0) {
+      if (!slotEvent) {
         const ghost = document.createElement('button');
         ghost.type = 'button';
         ghost.className = 'slot-ghost';
@@ -250,9 +260,7 @@ export class AgendaView {
         });
         card.appendChild(ghost);
       } else {
-        for (const ev of slotEvents) {
-          card.appendChild(this._buildEventCard(ev, catMap.get(ev.category_id), settings));
-        }
+        card.appendChild(this._buildEventCard(slotEvent, catMap.get(slotEvent.category_id), settings));
       }
 
       list.appendChild(card);
@@ -261,7 +269,7 @@ export class AgendaView {
     container.appendChild(list);
   }
 
-  _renderMonthView(container, events, catMap, settings, todayStr) {
+  _renderMonthView(container, events, categories, catMap, settings, todayStr) {
     const d = parseDateStr(this.anchorDate);
     const cells = getMonthGridDates(d.getFullYear(), d.getMonth());
 
@@ -271,6 +279,21 @@ export class AgendaView {
         <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
       </div>
       <div class="month-grid"></div>
+      <section class="month-legend-card" aria-label="Legenda de categorias">
+        <span class="month-legend-title">Categorias</span>
+        <div class="month-legend-items">
+          ${categories
+            .map(
+              (c) => `
+              <span class="month-legend-item" style="--cat-color:${c.color};">
+                <span class="month-legend-dot"></span>
+                <span>${this._escape(c.name)}</span>
+              </span>
+            `
+            )
+            .join('')}
+        </div>
+      </section>
     `;
 
     const grid = wrapper.querySelector('.month-grid');
@@ -339,7 +362,6 @@ export class AgendaView {
       <div class="event-main">
         <div class="event-title-row">
           <span class="event-title">${this._escape(cleanTitle)}</span>
-          ${newBadgeHtml}
         </div>
         <div class="event-meta">
           <span class="cat-badge"><span class="cat-swatch"></span>${this._escape(catName)}${timeTag}</span>
@@ -347,6 +369,7 @@ export class AgendaView {
         </div>
       </div>
       <div class="event-icon-actions">
+        ${newBadgeHtml}
         <button type="button" class="icon-action-btn btn-edit" aria-label="Editar">
           ${ICONS.edit}
         </button>
@@ -399,19 +422,37 @@ export class AgendaView {
       wrap.querySelector('#del-rec-cancel').addEventListener('click', () => this.modal.close());
 
       wrap.querySelector('#del-rec-one').addEventListener('click', async () => {
+        const snapshotEvent = { ...ev };
         const supKey = `${ev.date}::${ev.shift}::${ev.recurrence_id}`;
         await this.repo.addSuppressedRecurrence(supKey);
         await this.repo.deleteEvent(ev.id);
         this.modal.close();
-        this.showToast('Ocorrência excluída.');
+
+        this.showToast('Ocorrência excluída.', 'Desfazer', async () => {
+          await this.repo.removeSuppressedRecurrence(supKey);
+          await this.repo.saveEvent(snapshotEvent);
+          await this.onStateChange();
+        });
+
         await this.onStateChange();
       });
 
       wrap.querySelector('#del-rec-all').addEventListener('click', async () => {
+        const allEvents = await this.repo.getEvents();
+        const allRecurrences = await this.repo.getRecurrences();
+        const snapshotEvents = allEvents.filter((e) => e.recurrence_id === ev.recurrence_id);
+        const snapshotRec = allRecurrences.find((r) => r.id === ev.recurrence_id);
+
         await this.repo.deleteEventsByRecurrenceId(ev.recurrence_id);
         await this.repo.deleteRecurrence(ev.recurrence_id);
         this.modal.close();
-        this.showToast('Todos os compromissos recorrentes excluídos.');
+
+        this.showToast('Recorrência excluída.', 'Desfazer', async () => {
+          if (snapshotRec) await this.repo.saveRecurrence(snapshotRec);
+          if (snapshotEvents.length > 0) await this.repo.saveEventsBulk(snapshotEvents);
+          await this.onStateChange();
+        });
+
         await this.onStateChange();
       });
 
@@ -430,9 +471,15 @@ export class AgendaView {
       wrap.querySelector('#del-cancel').addEventListener('click', () => this.modal.close());
 
       wrap.querySelector('#del-confirm').addEventListener('click', async () => {
+        const snapshotEvent = { ...ev };
         await this.repo.deleteEvent(ev.id);
         this.modal.close();
-        this.showToast('Compromisso excluído.');
+
+        this.showToast('Compromisso excluído.', 'Desfazer', async () => {
+          await this.repo.saveEvent(snapshotEvent);
+          await this.onStateChange();
+        });
+
         await this.onStateChange();
       });
 
@@ -457,6 +504,9 @@ export class AgendaView {
       if (ev) {
         const cat = catMap.get(ev.category_id);
         const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
+        const isCompensated = Boolean(ev.is_compensated || ev.compensation_log_id);
+        const newBadgeHtml = isCompensated ? `<span class="badge-new">New</span>` : '';
+
         row.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <div>
@@ -465,6 +515,7 @@ export class AgendaView {
               <div style="font-size:0.75rem; color:${cat ? cat.color : '#888'};">${cat ? cat.name : ''}</div>
             </div>
             <div class="event-icon-actions">
+              ${newBadgeHtml}
               <button type="button" class="icon-action-btn btn-edit-quick" aria-label="Editar">${ICONS.edit}</button>
               <button type="button" class="icon-action-btn btn-delete btn-del-quick" aria-label="Excluir">${ICONS.trash}</button>
             </div>
@@ -536,6 +587,27 @@ export class AgendaView {
       </div>
 
       ${
+        isEdit
+          ? `
+      <div class="form-grid form-grid-2">
+        <div class="field-group">
+          <label class="field-label" for="ev-date">Data</label>
+          <input class="input-control" id="ev-date" type="date" value="${eventDraft.date || this.anchorDate}" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="ev-shift">Turno</label>
+          <select class="input-control" id="ev-shift">
+            ${SHIFT_ORDER.map((sId) => {
+              const s = SHIFTS[sId.toUpperCase()];
+              return `<option value="${sId}" ${sId === eventDraft.shift ? 'selected' : ''}>${s.label}</option>`;
+            }).join('')}
+          </select>
+        </div>
+      </div>`
+          : ''
+      }
+
+      ${
         is24h
           ? `
       <div class="form-grid form-grid-2">
@@ -577,14 +649,24 @@ export class AgendaView {
       e.preventDefault();
       const chosenCat = categories.find((c) => c.id === selectedCatId);
       const title = titleInput.value.trim() || (chosenCat ? chosenCat.name : 'Compromisso');
-      const date = eventDraft.date || this.anchorDate;
-      let shift = eventDraft.shift || 'morning';
+      const date = isEdit ? form.querySelector('#ev-date').value : eventDraft.date || this.anchorDate;
+      let shift = isEdit ? form.querySelector('#ev-shift').value : eventDraft.shift || 'morning';
       const start_time = is24h ? form.querySelector('#ev-start').value : null;
       const end_time = is24h ? form.querySelector('#ev-end').value : null;
 
       if (is24h && start_time) {
         shift = inferShiftFromTime(start_time);
       }
+
+      // Verifica se há um compromisso ativo diferente ocupando o turno destino (deslocamento manual)
+      const allEvents = await this.repo.getEvents();
+      const displacedEvent = allEvents.find(
+        (existing) =>
+          existing.id !== eventDraft.id &&
+          existing.date === date &&
+          existing.shift === shift &&
+          existing.status !== EVENT_STATUS.FAILED
+      );
 
       const candidate = createEvent({
         ...eventDraft,
@@ -604,6 +686,11 @@ export class AgendaView {
       }
 
       await this.repo.saveEvent(candidate);
+
+      if (displacedEvent) {
+        await this.engine.handleManualDisplacement(displacedEvent, candidate);
+      }
+
       this.modal.close();
       await this.onStateChange();
     });

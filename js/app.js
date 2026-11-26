@@ -45,6 +45,7 @@ class AppController {
     this.recurrencesView = new RecurrencesView({
       container: document.getElementById('view-recurrences'),
       repo: this.repo,
+      modal: this.modal,
       onStateChange: () => this.refreshAll(),
       showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
@@ -78,9 +79,13 @@ _registerServiceWorker() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register('./sw.js', { updateViaCache: 'none' })
+<<<<<<< HEAD
         .then((reg) => {
           reg.update();
         })
+=======
+        .then((reg) => reg.update())
+>>>>>>> 48a3134 (fix(agenda,engine): enforce single event per shift, protect fixed church slots, and add undoable delete confirmations)
         .catch((err) => {
           console.warn('Service Worker não registrado:', err);
         });
@@ -115,6 +120,7 @@ _registerServiceWorker() {
   }
 
   async refreshAll() {
+    await this.recurrenceService.enforceSingleEventPerSlot();
     await this.lifecycleService.syncStatuses();
     await this._updateCompensationBadge();
 

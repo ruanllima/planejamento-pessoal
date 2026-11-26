@@ -1,5 +1,6 @@
 import { StorageRepository } from './StorageRepository.js';
-import { nowISO } from '../domain/entities.js';
+import { EVENT_STATUS, nowISO } from '../domain/entities.js';
+import { isEventInFuture } from '../domain/DateUtils.js';
 
 const STORAGE_KEYS = {
   CATEGORIES: 'chronos_categories_v1',
@@ -33,17 +34,50 @@ export class LocalStorageAdapter extends StorageRepository {
   }
 
   async getCategories() {
-    return this._read(STORAGE_KEYS.CATEGORIES, []);
+    const raw = this._read(STORAGE_KEYS.CATEGORIES, []);
+    return raw
+      .map((c, idx) => ({
+        ...c,
+        priority_order: Number.isFinite(Number(c.priority_order)) ? Number(c.priority_order) : idx,
+        is_relocatable:
+          typeof c.is_relocatable === 'boolean'
+            ? c.is_relocatable
+            : typeof c.is_compensable === 'boolean'
+              ? c.is_compensable
+              : true,
+        is_sacrificeable: typeof c.is_sacrificeable === 'boolean' ? c.is_sacrificeable : true
+      }))
+      .sort((a, b) => a.priority_order - b.priority_order);
   }
 
   async saveCategory(category) {
     const list = await this.getCategories();
-    const record = { ...category, updated_at: nowISO() };
+    const record = {
+      ...category,
+      priority_order: Number.isFinite(Number(category.priority_order))
+        ? Number(category.priority_order)
+        : list.length,
+      is_relocatable: Boolean(category.is_relocatable),
+      is_sacrificeable: Boolean(category.is_sacrificeable),
+      updated_at: nowISO()
+    };
     const idx = list.findIndex((c) => c.id === record.id);
     if (idx >= 0) list[idx] = record;
     else list.push(record);
     this._write(STORAGE_KEYS.CATEGORIES, list);
     return record;
+  }
+
+  async saveCategoriesBulk(categories) {
+    const normalized = categories.map((c, idx) => ({
+      ...c,
+      priority_order: Number.isFinite(Number(c.priority_order)) ? Number(c.priority_order) : idx,
+      is_relocatable: Boolean(c.is_relocatable),
+      is_sacrificeable: Boolean(c.is_sacrificeable),
+      updated_at: nowISO()
+    }));
+    this._write(STORAGE_KEYS.CATEGORIES, normalized);
+    return normalized;
   }
 
   async deleteCategory(id) {
@@ -58,10 +92,19 @@ export class LocalStorageAdapter extends StorageRepository {
   async saveEvent(event) {
     const list = await this.getEvents();
     const record = { ...event, updated_at: nowISO() };
-    const idx = list.findIndex((e) => e.id === record.id);
-    if (idx >= 0) list[idx] = record;
-    else list.push(record);
-    this._write(STORAGE_KEYS.EVENTS, list);
+
+    const filtered = list.filter((existing) => {
+      if (existing.id === record.id) return false;
+      const sameSlot = existing.date === record.date && existing.shift === record.shift;
+      if (!sameSlot) return true;
+      const bothOccupied =
+        (isEventInFuture(existing) || existing.status !== EVENT_STATUS.FAILED) &&
+        (isEventInFuture(record) || record.status !== EVENT_STATUS.FAILED);
+      return !bothOccupied;
+    });
+
+    filtered.push(record);
+    this._write(STORAGE_KEYS.EVENTS, filtered);
     return record;
   }
 
@@ -71,9 +114,33 @@ export class LocalStorageAdapter extends StorageRepository {
     for (const ev of events) {
       map.set(ev.id, { ...ev, updated_at: nowISO() });
     }
-    const merged = Array.from(map.values());
-    this._write(STORAGE_KEYS.EVENTS, merged);
-    return merged;
+
+    const incomingIds = new Set(events.map((e) => e.id));
+    const allMerged = Array.from(map.values());
+    const result = [];
+    const occupiedSlotById = new Map();
+
+    for (const ev of allMerged) {
+      if (!incomingIds.has(ev.id)) continue;
+      const slotKey = `${ev.date}::${ev.shift}`;
+      const isOccupied = isEventInFuture(ev) || ev.status !== EVENT_STATUS.FAILED;
+      if (isOccupied) occupiedSlotById.set(slotKey, ev.id);
+      result.push(ev);
+    }
+
+    for (const ev of allMerged) {
+      if (incomingIds.has(ev.id)) continue;
+      const slotKey = `${ev.date}::${ev.shift}`;
+      const isOccupied = isEventInFuture(ev) || ev.status !== EVENT_STATUS.FAILED;
+      if (isOccupied && occupiedSlotById.has(slotKey)) {
+        continue;
+      }
+      if (isOccupied) occupiedSlotById.set(slotKey, ev.id);
+      result.push(ev);
+    }
+
+    this._write(STORAGE_KEYS.EVENTS, result);
+    return result;
   }
 
   async deleteEvent(id) {
@@ -117,6 +184,11 @@ export class LocalStorageAdapter extends StorageRepository {
     }
   }
 
+  async removeSuppressedRecurrence(key) {
+    const list = (await this.getSuppressedRecurrences()).filter((k) => k !== key);
+    this._write(STORAGE_KEYS.SUPPRESSED_REC, list);
+  }
+
   async getCompensationLogs() {
     return this._read(STORAGE_KEYS.COMPENSATIONS, []);
   }
@@ -144,7 +216,7 @@ export class LocalStorageAdapter extends StorageRepository {
 
   async exportAll() {
     return {
-      version: 2,
+      version: 3,
       exported_at: nowISO(),
       categories: await this.getCategories(),
       events: await this.getEvents(),

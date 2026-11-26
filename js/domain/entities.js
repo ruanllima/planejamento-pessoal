@@ -37,19 +37,30 @@ export function createCategory({
   color = '#3B82F6',
   weekly_goal = null,
   allowed_shifts = ['morning', 'afternoon', 'night'],
-  substitution_priority = [],
-  is_compensable = true,
+  priority_order = 0,
+  is_relocatable = true,
+  is_sacrificeable = true,
+  // Compatibilidade retroativa com backups antigos
+  is_compensable = undefined,
   created_at = nowISO(),
   updated_at = nowISO()
 }) {
+  const relocatableFlag =
+    typeof is_relocatable === 'boolean'
+      ? is_relocatable
+      : typeof is_compensable === 'boolean'
+        ? is_compensable
+        : true;
+
   return {
     id,
     name: name.trim(),
     color,
     weekly_goal: weekly_goal !== null && weekly_goal !== '' ? Number(weekly_goal) : null,
     allowed_shifts: [...allowed_shifts],
-    substitution_priority: [...substitution_priority],
-    is_compensable: Boolean(is_compensable),
+    priority_order: Number.isFinite(Number(priority_order)) ? Number(priority_order) : 0,
+    is_relocatable: Boolean(relocatableFlag),
+    is_sacrificeable: Boolean(is_sacrificeable),
     created_at,
     updated_at
   };

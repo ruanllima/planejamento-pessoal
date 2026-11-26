@@ -36,11 +36,11 @@ export class CompensationEngine {
     });
   }
 
-  _buildCandidateSlots(failedEvent, allowNextWeek, now = new Date()) {
+  _buildCandidateSlots(referenceDateStr, referenceShiftId, allowNextWeek, now = new Date()) {
     const todayStr = toDateStr(now);
     const currentShiftIdx = SHIFT_ORDER.indexOf(getCurrentShiftId(now));
 
-    const weekDates = getWeekDates(failedEvent.date);
+    const weekDates = getWeekDates(referenceDateStr);
     const horizonDates = [...weekDates];
     if (allowNextWeek) {
       const nextWeekStart = addDays(weekDates[6], 1);
@@ -52,8 +52,8 @@ export class CompensationEngine {
       for (const shiftId of SHIFT_ORDER) {
         const shiftIdx = SHIFT_ORDER.indexOf(shiftId);
 
-        if (dateStr < failedEvent.date) continue;
-        if (dateStr === failedEvent.date && shiftIdx <= SHIFT_ORDER.indexOf(failedEvent.shift)) {
+        if (dateStr < referenceDateStr) continue;
+        if (dateStr === referenceDateStr && shiftIdx <= SHIFT_ORDER.indexOf(referenceShiftId)) {
           continue;
         }
         if (dateStr < todayStr) continue;
@@ -65,106 +65,202 @@ export class CompensationEngine {
     return slots;
   }
 
-  async findBestPlans(failedEvent, categoriesMap, allEvents, allowNextWeek = true) {
-    const failedCat = categoriesMap.get(failedEvent.category_id);
-    if (!failedCat) return [];
+  /**
+   * Constrói a Lista Geral ordenada do menor peso para o maior peso:
+   * ['none', ...categorias com priority_order < targetCat.priority_order que sejam sacrificáveis]
+   */
+  _buildSearchTargetsForCategory(targetCat, orderedCategories) {
+    const targets = [{ type: 'none', category: null }];
 
-    const candidateSlots = this._buildCandidateSlots(failedEvent, allowNextWeek);
-    const eventBySlot = new Map(
-      allEvents
-        .filter((e) => e.status !== EVENT_STATUS.FAILED)
-        .map((e) => [`${e.date}::${e.shift}`, e])
+    for (const cat of orderedCategories) {
+      // Ao chegar na própria categoria, interrompe imediatamente (não olha prioridades iguais ou superiores)
+      if (cat.id === targetCat.id || cat.priority_order >= targetCat.priority_order) {
+        break;
+      }
+      if (!cat.is_sacrificeable) continue;
+      targets.push({ type: 'category', category: cat });
+    }
+
+    return targets;
+  }
+
+  async findBestPlans(sourceEvent, orderedCategories, allEvents, allowNextWeek = true) {
+    const sourceCat = orderedCategories.find((c) => c.id === sourceEvent.category_id);
+    if (!sourceCat || !sourceCat.is_relocatable) {
+      return [];
+    }
+
+    const candidateSlots = this._buildCandidateSlots(
+      sourceEvent.date,
+      sourceEvent.shift,
+      allowNextWeek
     );
 
-    const weekDatesSet = new Set(getWeekDates(failedEvent.date));
+    const eventBySlot = new Map();
+    for (const ev of allEvents) {
+      if (ev.status === EVENT_STATUS.FAILED) continue;
+      const key = `${ev.date}::${ev.shift}`;
+      if (!eventBySlot.has(key)) {
+        eventBySlot.set(key, ev);
+      }
+    }
+
+    const searchTargets = this._buildSearchTargetsForCategory(sourceCat, orderedCategories);
     const plans = [];
 
-    for (const slot of candidateSlots) {
-      if (!failedCat.allowed_shifts.includes(slot.shift)) continue;
+    // Percorre a lista global na ordem exata: primeiro 'none' (vazio), depois categorias inferiores sacrificáveis
+    for (let tIdx = 0; tIdx < searchTargets.length; tIdx++) {
+      const target = searchTargets[tIdx];
 
-      const isNextWeek = !weekDatesSet.has(slot.date);
-      const weekPenalty = isNextWeek ? 50 : 0;
-      const slotKey = `${slot.date}::${slot.shift}`;
-      const occupant = eventBySlot.get(slotKey);
+      for (const slot of candidateSlots) {
+        // Respeita estritamente os turnos permitidos da categoria que está sendo realocada
+        if (!sourceCat.allowed_shifts.includes(slot.shift)) continue;
 
-      if (!occupant) {
-        plans.push({
-          cost: 0 + weekPenalty,
-          type: 'empty_slot',
-          targetSlot: slot,
-          displacedEvent: null,
-          cascadeTargetSlot: null,
-          cascadeSacrificedEvent: null,
-          summary: `${failedCat.name} (${formatDayShort(failedEvent.date)}, ${SHIFTS[failedEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) em horário livre.`
-        });
-        continue;
-      }
+        const occupant = eventBySlot.get(`${slot.date}::${slot.shift}`);
 
-      if (occupant.category_id === failedCat.id) continue;
-
-      const priorityIdx = failedCat.substitution_priority.indexOf(occupant.category_id);
-      if (priorityIdx === -1) continue;
-
-      const occupantCat = categoriesMap.get(occupant.category_id);
-      const directCost = (priorityIdx + 1) * 10 + weekPenalty;
-
-      plans.push({
-        cost: directCost,
-        type: 'direct_replace',
-        targetSlot: slot,
-        displacedEvent: occupant,
-        cascadeTargetSlot: null,
-        cascadeSacrificedEvent: null,
-        summary: `${failedCat.name} (${formatDayShort(failedEvent.date)}, ${SHIFTS[failedEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) substituindo "${occupant.title}".`
-      });
-
-      if (occupantCat && occupantCat.is_compensable) {
-        for (const secondarySlot of candidateSlots) {
-          if (secondarySlot.date === slot.date && secondarySlot.shift === slot.shift) continue;
-          if (!occupantCat.allowed_shifts.includes(secondarySlot.shift)) continue;
-
-          const secKey = `${secondarySlot.date}::${secondarySlot.shift}`;
-          const secOccupant = eventBySlot.get(secKey);
-
-          if (!secOccupant) {
-            const cascadeCost = (priorityIdx + 1) * 4 + weekPenalty;
+        if (target.type === 'none') {
+          if (!occupant) {
             plans.push({
-              cost: cascadeCost,
-              type: 'cascade_to_empty',
+              cost: plans.length,
+              type: 'empty_slot',
               targetSlot: slot,
-              displacedEvent: occupant,
-              cascadeTargetSlot: secondarySlot,
+              displacedEvent: null,
+              cascadeTargetSlot: null,
               cascadeSacrificedEvent: null,
-              summary: `Efeito Dominó: ${failedCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), e "${occupant.title}" foi movido para ${formatDayShort(secondarySlot.date)} (${SHIFTS[secondarySlot.shift.toUpperCase()].label}).`
+              summary: `${sourceCat.name} (${formatDayShort(sourceEvent.date)}, ${SHIFTS[sourceEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) em turno livre.`
             });
-            break;
-          } else if (secOccupant.category_id !== occupantCat.id && secOccupant.category_id !== failedCat.id) {
-            const secPriorityIdx = occupantCat.substitution_priority.indexOf(secOccupant.category_id);
-            if (secPriorityIdx !== -1) {
-              const cascadeSacrificeCost = (priorityIdx + 1) * 6 + (secPriorityIdx + 1) * 8 + weekPenalty;
+          }
+        } else if (target.type === 'category' && occupant) {
+          if (occupant.category_id !== target.category.id) continue;
+          // Ignora se por algum motivo for a própria categoria
+          if (occupant.category_id === sourceCat.id) continue;
+
+          const occupantCat = target.category;
+
+          // Se a categoria deslocada também for realocável, tenta encadear a realocação dela
+          if (occupantCat.is_relocatable) {
+            const subTargets = this._buildSearchTargetsForCategory(occupantCat, orderedCategories);
+            let chained = false;
+
+            for (const subTarget of subTargets) {
+              for (const secSlot of candidateSlots) {
+                if (secSlot.date === slot.date && secSlot.shift === slot.shift) continue;
+                if (!occupantCat.allowed_shifts.includes(secSlot.shift)) continue;
+
+                const secOccupant = eventBySlot.get(`${secSlot.date}::${secSlot.shift}`);
+
+                if (subTarget.type === 'none' && !secOccupant) {
+                  plans.push({
+                    cost: plans.length,
+                    type: 'cascade_to_empty',
+                    targetSlot: slot,
+                    displacedEvent: occupant,
+                    cascadeTargetSlot: secSlot,
+                    cascadeSacrificedEvent: null,
+                    summary: `Efeito Dominó: ${sourceCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), e "${occupant.title}" foi realocado para ${formatDayShort(secSlot.date)} (${SHIFTS[secSlot.shift.toUpperCase()].label}).`
+                  });
+                  chained = true;
+                  break;
+                } else if (
+                  subTarget.type === 'category' &&
+                  secOccupant &&
+                  secOccupant.category_id === subTarget.category.id &&
+                  secOccupant.category_id !== occupantCat.id &&
+                  secOccupant.category_id !== sourceCat.id
+                ) {
+                  plans.push({
+                    cost: plans.length,
+                    type: 'cascade_replace',
+                    targetSlot: slot,
+                    displacedEvent: occupant,
+                    cascadeTargetSlot: secSlot,
+                    cascadeSacrificedEvent: secOccupant,
+                    summary: `Efeito Dominó: ${sourceCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), deslocando "${occupant.title}" para ${formatDayShort(secSlot.date)} (${SHIFTS[secSlot.shift.toUpperCase()].label}) no lugar de "${secOccupant.title}".`
+                  });
+                  chained = true;
+                  break;
+                }
+              }
+              if (chained) break;
+            }
+
+            if (!chained) {
               plans.push({
-                cost: cascadeSacrificeCost,
-                type: 'cascade_replace',
+                cost: plans.length,
+                type: 'direct_replace',
                 targetSlot: slot,
                 displacedEvent: occupant,
-                cascadeTargetSlot: secondarySlot,
-                cascadeSacrificedEvent: secOccupant,
-                summary: `Efeito Dominó: ${failedCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), deslocando "${occupant.title}" para ${formatDayShort(secondarySlot.date)} (${SHIFTS[secondarySlot.shift.toUpperCase()].label}) no lugar de "${secOccupant.title}".`
+                cascadeTargetSlot: null,
+                cascadeSacrificedEvent: null,
+                summary: `${sourceCat.name} (${formatDayShort(sourceEvent.date)}, ${SHIFTS[sourceEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) substituindo "${occupant.title}".`
               });
-              break;
             }
+          } else {
+            plans.push({
+              cost: plans.length,
+              type: 'direct_replace',
+              targetSlot: slot,
+              displacedEvent: occupant,
+              cascadeTargetSlot: null,
+              cascadeSacrificedEvent: null,
+              summary: `${sourceCat.name} (${formatDayShort(sourceEvent.date)}, ${SHIFTS[sourceEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) substituindo "${occupant.title}".`
+            });
           }
         }
       }
     }
 
-    return plans.sort((a, b) => a.cost - b.cost);
+    return plans;
+  }
+
+  /**
+   * Dispara realocação automática quando uma alteração manual de compromisso
+   * ocupa um turno e desloca o compromisso que estava lá (ex.: mover Rafa para sexta à noite onde havia Trabalho).
+   */
+  async handleManualDisplacement(displacedEvent, replacingEvent) {
+    const orderedCategories = await this.repo.getCategories();
+    const displacedCat = orderedCategories.find((c) => c.id === displacedEvent.category_id);
+
+    if (!displacedCat || !displacedCat.is_relocatable) {
+      return { compensated: false, reason: 'Categoria deslocada não é realocável automaticamente.' };
+    }
+
+    const settings = await this.repo.getSettings();
+    const allEvents = await this.repo.getEvents();
+
+    const plans = await this.findBestPlans(
+      displacedEvent,
+      orderedCategories,
+      allEvents,
+      settings.allow_next_week_spillover
+    );
+
+    const reasonPrefix = `"${replacingEvent.title}" ocupou ${formatDayShort(displacedEvent.date)} (${SHIFTS[displacedEvent.shift.toUpperCase()].label}) e deslocou "${displacedEvent.title}".`;
+
+    if (plans.length === 0) {
+      const log = createCompensationLog({
+        failed_event_id: displacedEvent.id,
+        failed_category_id: displacedCat.id,
+        reason_human: `${reasonPrefix} Nenhum turno compatível inferior disponível — meta ficou com déficit.`,
+        snapshot_before: [displacedEvent],
+        status: 'pending_review'
+      });
+      await this.repo.saveCompensationLog(log);
+      return { compensated: false, log };
+    }
+
+    const bestPlan = {
+      ...plans[0],
+      summary: `${reasonPrefix} ${plans[0].summary}`
+    };
+
+    return this._applyPlan(displacedEvent, displacedEvent, bestPlan, { markSourceAsFailed: false });
   }
 
   /**
    * Alternância idempotente (Estado A <-> Estado B):
-   * - Se estiver REALIZADO ou PENDENTE -> marca NÃO REALIZADO e executa compensação (Estado B).
-   * - Se estiver NÃO REALIZADO -> reverte exatamente o log de compensação vinculado (se houver) e volta para REALIZADO (Estado A).
+   * - Se estiver REALIZADO ou PENDENTE -> marca NÃO REALIZADO e executa realocação (se realocável).
+   * - Se estiver NÃO REALIZADO -> reverte log vinculado e volta para REALIZADO.
    */
   async toggleEventCompletionState(eventId) {
     const allEvents = await this.repo.getEvents();
@@ -210,10 +306,9 @@ export class CompensationEngine {
       return { compensated: false, reason: 'Compromissos futuros não podem ser marcados como não realizados.' };
     }
 
-    const categories = await this.repo.getCategories();
-    const categoriesMap = new Map(categories.map((c) => [c.id, c]));
+    const orderedCategories = await this.repo.getCategories();
     const settings = await this.repo.getSettings();
-    const failedCat = categoriesMap.get(targetEvent.category_id);
+    const failedCat = orderedCategories.find((c) => c.id === targetEvent.category_id);
 
     const updatedFailedEvent = {
       ...targetEvent,
@@ -222,14 +317,23 @@ export class CompensationEngine {
     };
     await this.repo.saveEvent(updatedFailedEvent);
 
-    if (!failedCat || !failedCat.is_compensable) {
-      return { compensated: false, reason: 'Categoria sem compensação automática.' };
+    if (!failedCat || !failedCat.is_relocatable) {
+      return { compensated: false, reason: 'Categoria não realocável automaticamente.' };
     }
 
+    const existingLogs = await this.repo.getCompensationLogs();
+    const alreadyCompensated = existingLogs.find(
+      (l) => l.failed_event_id === eventId && l.status !== 'reverted'
+    );
+    if (alreadyCompensated) {
+      return { compensated: false, log: alreadyCompensated };
+    }
+
+    const refreshedEvents = await this.repo.getEvents();
     const plans = await this.findBestPlans(
       updatedFailedEvent,
-      categoriesMap,
-      allEvents,
+      orderedCategories,
+      refreshedEvents,
       settings.allow_next_week_spillover
     );
 
@@ -237,7 +341,7 @@ export class CompensationEngine {
       const log = createCompensationLog({
         failed_event_id: updatedFailedEvent.id,
         failed_category_id: failedCat.id,
-        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), sem turnos compatíveis livres.`,
+        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), sem turnos compatíveis disponíveis.`,
         snapshot_before: [targetEvent],
         status: 'pending_review'
       });
@@ -246,33 +350,45 @@ export class CompensationEngine {
     }
 
     const bestPlan = plans[0];
-    return this._applyPlan(updatedFailedEvent, targetEvent, bestPlan);
+    return this._applyPlan(updatedFailedEvent, targetEvent, bestPlan, { markSourceAsFailed: true });
   }
 
-  async _applyPlan(updatedFailedEvent, originalFailedEventSnapshot, plan) {
-    const snapshotBefore = [originalFailedEventSnapshot];
+  async _applyPlan(sourceEvent, originalSnapshot, plan, { markSourceAsFailed = true } = {}) {
+    const snapshotBefore = markSourceAsFailed ? [originalSnapshot] : [];
     const eventsToSave = [];
     const createdIds = [];
     const chainSteps = [];
 
     const logId = createCompensationLog({
-      failed_event_id: updatedFailedEvent.id,
-      failed_category_id: updatedFailedEvent.category_id,
+      failed_event_id: sourceEvent.id,
+      failed_category_id: sourceEvent.category_id,
       reason_human: plan.summary
     }).id;
 
-    const cleanTitle = updatedFailedEvent.title.replace(/\s*\(Compensação\)/gi, '').trim();
-    const compensatedEvent = createEvent({
+    const currentEvents = await this.repo.getEvents();
+    const slotCollision = currentEvents.find(
+      (e) =>
+        e.date === plan.targetSlot.date &&
+        e.shift === plan.targetSlot.shift &&
+        e.status !== EVENT_STATUS.FAILED &&
+        (!plan.displacedEvent || e.id !== plan.displacedEvent.id)
+    );
+    if (slotCollision) {
+      throw new Error('Turno destino já possui compromisso ativo.');
+    }
+
+    const cleanTitle = sourceEvent.title.replace(/\s*\(Compensação\)/gi, '').trim();
+    const relocatedEvent = createEvent({
       title: cleanTitle,
-      category_id: updatedFailedEvent.category_id,
+      category_id: sourceEvent.category_id,
       date: plan.targetSlot.date,
       shift: plan.targetSlot.shift,
       status: EVENT_STATUS.PENDING,
       compensation_log_id: logId,
       is_compensated: true
     });
-    eventsToSave.push(compensatedEvent);
-    createdIds.push(compensatedEvent.id);
+    eventsToSave.push(relocatedEvent);
+    createdIds.push(relocatedEvent.id);
 
     if (plan.displacedEvent) {
       snapshotBefore.push({ ...plan.displacedEvent });
@@ -282,7 +398,7 @@ export class CompensationEngine {
           ...plan.displacedEvent,
           status: EVENT_STATUS.FAILED,
           manual_status_override: true,
-          notes: `Substituído por compensação de ${updatedFailedEvent.title}`
+          notes: `Substituído por realocação de ${sourceEvent.title}`
         });
         chainSteps.push(`Substituiu "${plan.displacedEvent.title}"`);
       } else if (plan.type === 'cascade_to_empty' || plan.type === 'cascade_replace') {
@@ -321,8 +437,8 @@ export class CompensationEngine {
 
     const log = createCompensationLog({
       id: logId,
-      failed_event_id: updatedFailedEvent.id,
-      failed_category_id: updatedFailedEvent.category_id,
+      failed_event_id: sourceEvent.id,
+      failed_category_id: sourceEvent.category_id,
       reason_human: plan.summary,
       chain_steps: chainSteps,
       snapshot_before: snapshotBefore,
@@ -369,16 +485,17 @@ export class CompensationEngine {
     if (!log) return [];
 
     const allEvents = await this.repo.getEvents();
-    const failedEvent = allEvents.find((e) => e.id === log.failed_event_id);
+    const failedEvent =
+      allEvents.find((e) => e.id === log.failed_event_id) ||
+      (log.snapshot_before || []).find((e) => e.id === log.failed_event_id);
     if (!failedEvent) return [];
 
-    const categories = await this.repo.getCategories();
-    const categoriesMap = new Map(categories.map((c) => [c.id, c]));
+    const orderedCategories = await this.repo.getCategories();
     const settings = await this.repo.getSettings();
 
     return this.findBestPlans(
       failedEvent,
-      categoriesMap,
+      orderedCategories,
       allEvents,
       settings.allow_next_week_spillover
     );
@@ -400,12 +517,15 @@ export class CompensationEngine {
     }
 
     const allEvents = await this.repo.getEvents();
-    const failedEvent = allEvents.find((e) => e.id === log.failed_event_id);
-    const originalSnapshot = (log.snapshot_before || []).find(
-      (ev) => ev.id === log.failed_event_id
-    ) || failedEvent;
+    const failedEvent =
+      allEvents.find((e) => e.id === log.failed_event_id) ||
+      (log.snapshot_before || []).find((ev) => ev.id === log.failed_event_id);
+    const originalSnapshot =
+      (log.snapshot_before || []).find((ev) => ev.id === log.failed_event_id) || failedEvent;
 
     await this.repo.saveCompensationLog({ ...log, status: 'reverted' });
-    return this._applyPlan(failedEvent, originalSnapshot, chosenPlan);
+    return this._applyPlan(failedEvent, originalSnapshot, chosenPlan, {
+      markSourceAsFailed: Boolean(allEvents.find((e) => e.id === log.failed_event_id))
+    });
   }
 }

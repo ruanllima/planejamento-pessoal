@@ -3,9 +3,10 @@ import { createRecurrence, SHIFT_ORDER, SHIFTS } from '../domain/entities.js';
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export class RecurrencesView {
-  constructor({ container, repo, onStateChange, showToast }) {
+  constructor({ container, repo, modal, onStateChange, showToast }) {
     this.container = container;
     this.repo = repo;
+    this.modal = modal;
     this.onStateChange = onStateChange;
     this.showToast = showToast;
   }
@@ -118,15 +119,47 @@ export class RecurrencesView {
         </div>
       `;
 
-      item.querySelector('.btn-del-rec').addEventListener('click', async () => {
-        await this.repo.deleteEventsByRecurrenceId(rec.id);
-        await this.repo.deleteRecurrence(rec.id);
-        this.showToast('Recorrência removida.');
-        await this.onStateChange();
+      item.querySelector('.btn-del-rec').addEventListener('click', () => {
+        this._confirmDeleteRecurrence(rec);
       });
 
       listEl.appendChild(item);
     }
+  }
+
+  _confirmDeleteRecurrence(rec) {
+    const wrap = document.createElement('div');
+    wrap.className = 'form-grid';
+    wrap.innerHTML = `
+      <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+        Deseja realmente remover a regra recorrente <strong>${this._escape(rec.title)}</strong> e todas as suas ocorrências futuras na agenda?
+      </p>
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <button type="button" class="btn btn-secondary" style="flex:1;" id="rec-del-cancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" style="flex:1;" id="rec-del-confirm">Remover</button>
+      </div>
+    `;
+
+    wrap.querySelector('#rec-del-cancel').addEventListener('click', () => this.modal.close());
+    wrap.querySelector('#rec-del-confirm').addEventListener('click', async () => {
+      const snapshotRec = { ...rec };
+      const allEvents = await this.repo.getEvents();
+      const snapshotEvents = allEvents.filter((e) => e.recurrence_id === rec.id);
+
+      await this.repo.deleteEventsByRecurrenceId(rec.id);
+      await this.repo.deleteRecurrence(rec.id);
+      this.modal.close();
+
+      this.showToast('Recorrência removida.', 'Desfazer', async () => {
+        await this.repo.saveRecurrence(snapshotRec);
+        if (snapshotEvents.length > 0) await this.repo.saveEventsBulk(snapshotEvents);
+        await this.onStateChange();
+      });
+
+      await this.onStateChange();
+    });
+
+    this.modal.open('Confirmar remoção de recorrência', wrap);
   }
 
   _bindForm() {
