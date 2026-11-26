@@ -1,258 +1,135 @@
-const AppController = {
-  pendingDeleteEvent: null,
+import { LocalStorageAdapter } from './repositories/LocalStorageAdapter.js';
+import { StatusLifecycleService } from './services/StatusLifecycleService.js';
+import { RecurrenceService } from './services/RecurrenceService.js';
+import { CompensationEngine } from './services/CompensationEngine.js';
+import { SeedService } from './services/SeedService.js';
+import { ModalManager } from './ui/ModalManager.js';
+import { ToastManager } from './ui/ToastManager.js';
+import { AgendaView } from './ui/AgendaView.js';
+import { CompensationsView } from './ui/CompensationsView.js';
+import { RecurrencesView } from './ui/RecurrencesView.js';
+import { SettingsView } from './ui/SettingsView.js';
 
-  init() {
-    AppState.init();
-    CompensationEngine.runShiftAutoCheck();
-    this.bindEvents();
-    UIRenderer.renderAll();
+class AppController {
+  constructor() {
+    this.repo = new LocalStorageAdapter();
 
-    // Checagem periódica de virada de turno (06:00, 12:00, 18:00)
-    setInterval(() => {
-      CompensationEngine.runShiftAutoCheck();
-      UIRenderer.renderAll();
-    }, 60 * 1000);
-  },
+    this.lifecycleService = new StatusLifecycleService(this.repo);
+    this.recurrenceService = new RecurrenceService(this.repo);
+    this.compensationEngine = new CompensationEngine(this.repo);
+    this.seedService = new SeedService(this.repo);
+    this.modal = new ModalManager();
+    this.toast = new ToastManager('toast-container');
 
-  bindEvents() {
-    // Alternância Dia / Semana / Mês
-    document.querySelectorAll('.seg-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.seg-btn').forEach(b => {
-          b.classList.remove('active');
-          b.setAttribute('aria-selected', 'false');
-        });
-        btn.classList.add('active');
-        btn.setAttribute('aria-selected', 'true');
-        AppState.currentView = btn.dataset.view;
-        UIRenderer.renderAll();
-      });
+    this.activeTab = 'agenda';
+
+    this.agendaView = new AgendaView({
+      container: document.getElementById('view-agenda'),
+      repo: this.repo,
+      compensationEngine: this.compensationEngine,
+      recurrenceService: this.recurrenceService,
+      modal: this.modal,
+      onStateChange: () => this.refreshAll(),
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
-    // Navegação Anterior / Próximo / Hoje
-    document.getElementById('btn-prev').addEventListener('click', () => this.navigate(-1));
-    document.getElementById('btn-next').addEventListener('click', () => this.navigate(1));
-    document.getElementById('btn-today').addEventListener('click', () => {
-      AppState.anchorDate = new Date();
-      UIRenderer.renderAll();
+    this.compensationsView = new CompensationsView({
+      container: document.getElementById('view-compensations'),
+      repo: this.repo,
+      compensationEngine: this.compensationEngine,
+      modal: this.modal,
+      onStateChange: () => this.refreshAll(),
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
-    // Novo Compromisso
-    document.getElementById('btn-new-event').addEventListener('click', () => this.openCreateModal());
-
-    // Salvar Formulário
-    document.getElementById('form-event').addEventListener('submit', e => {
-      e.preventDefault();
-      this.saveEventFromForm();
+    this.recurrencesView = new RecurrencesView({
+      container: document.getElementById('view-recurrences'),
+      repo: this.repo,
+      onStateChange: () => this.refreshAll(),
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
-    // Botão Excluir no Modal de Edição
-    document.getElementById('btn-delete-event').addEventListener('click', () => {
-      if (this.pendingDeleteEvent) {
-        this.openDeleteConfirm(this.pendingDeleteEvent);
-      }
+    this.settingsView = new SettingsView({
+      container: document.getElementById('view-settings'),
+      repo: this.repo,
+      modal: this.modal,
+      onStateChange: () => this.refreshAll(),
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
-
-    // Ações de Exclusão
-    document.getElementById('btn-del-confirm-ok').addEventListener('click', () => {
-      if (!this.pendingDeleteEvent) return;
-      AppState.events = AppState.events.filter(e => e.id !== this.pendingDeleteEvent.id);
-      AppState.save();
-      this.closeAllModals();
-      UIRenderer.renderAll();
-    });
-
-    document.getElementById('btn-del-single').addEventListener('click', () => {
-      if (!this.pendingDeleteEvent) return;
-      const key = `${this.pendingDeleteEvent.id}::${this.pendingDeleteEvent.date}`;
-      if (!AppState.suppressedOccurrences.includes(key)) {
-        AppState.suppressedOccurrences.push(key);
-      }
-      AppState.save();
-      this.closeAllModals();
-      UIRenderer.renderAll();
-    });
-
-    document.getElementById('btn-del-series').addEventListener('click', () => {
-      if (!this.pendingDeleteEvent) return;
-      AppState.events = AppState.events.filter(e => e.id !== this.pendingDeleteEvent.id);
-      AppState.save();
-      this.closeAllModals();
-      UIRenderer.renderAll();
-    });
-
-    // Modal Ajustes e Categorias
-    document.getElementById('btn-settings').addEventListener('click', () => this.openSettingsModal());
-
-    document.getElementById('btn-reset-demo').addEventListener('click', () => {
-      AppState.resetToDefault();
-      this.renderCategoriesSettings();
-      UIRenderer.renderAll();
-    });
-
-    // Fechar Modais
-    document.querySelectorAll('.close-modal').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const targetId = btn.dataset.close;
-        if (targetId) {
-          document.getElementById(targetId).classList.add('hidden');
-        } else {
-          this.closeAllModals();
-        }
-      });
-    });
-  },
-
-  navigate(direction) {
-    const d = AppState.anchorDate;
-    if (AppState.currentView === 'day') {
-      AppState.anchorDate = addDays(d, direction);
-    } else if (AppState.currentView === 'week') {
-      AppState.anchorDate = addDays(d, direction * 7);
-    } else {
-      AppState.anchorDate = new Date(d.getFullYear(), d.getMonth() + direction, 1);
-    }
-    UIRenderer.renderAll();
-  },
-
-  populateCategorySelect(selectedId) {
-    const select = document.getElementById('ev-category');
-    select.innerHTML = AppState.categories.map(cat =>
-      `<option value="${cat.id}" ${cat.id === selectedId ? 'selected' : ''}>${cat.name}</option>`
-    ).join('');
-  },
-
-  openCreateModal() {
-    this.pendingDeleteEvent = null;
-    document.getElementById('modal-event-title').textContent = 'Novo Compromisso';
-    document.getElementById('ev-id').value = '';
-    document.getElementById('ev-title').value = '';
-    this.populateCategorySelect(AppState.categories[0]?.id);
-    document.getElementById('ev-date').value = formatDateISO(AppState.anchorDate);
-    document.getElementById('ev-start').value = '09:00';
-    document.getElementById('ev-end').value = '10:00';
-    document.getElementById('ev-recurrence').value = 'none';
-    document.getElementById('btn-delete-event').classList.add('hidden');
-    document.getElementById('modal-event').classList.remove('hidden');
-  },
-
-  openEditModal(ev) {
-    this.pendingDeleteEvent = ev;
-    document.getElementById('modal-event-title').textContent = 'Editar Compromisso';
-    document.getElementById('ev-id').value = ev.id;
-    document.getElementById('ev-title').value = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
-    this.populateCategorySelect(ev.categoryId);
-    document.getElementById('ev-date').value = ev.date;
-    document.getElementById('ev-start').value = ev.startTime;
-    document.getElementById('ev-end').value = ev.endTime;
-    document.getElementById('ev-recurrence').value = ev.recurrence || 'none';
-    document.getElementById('btn-delete-event').classList.remove('hidden');
-    document.getElementById('modal-event').classList.remove('hidden');
-  },
-
-  saveEventFromForm() {
-    const id = document.getElementById('ev-id').value;
-    const title = document.getElementById('ev-title').value.trim();
-    const categoryId = document.getElementById('ev-category').value;
-    const date = document.getElementById('ev-date').value;
-    const startTime = document.getElementById('ev-start').value;
-    const endTime = document.getElementById('ev-end').value;
-    const recurrence = document.getElementById('ev-recurrence').value;
-
-    if (!title || !date || !startTime || !endTime) return;
-
-    if (id) {
-      const existing = AppState.events.find(e => e.id === id);
-      if (existing) {
-        existing.title = title;
-        existing.categoryId = categoryId;
-        existing.date = date;
-        existing.startTime = startTime;
-        existing.endTime = endTime;
-        existing.recurrence = recurrence;
-        // Se moveu para o futuro, força status pendente
-        if (AppState.isFutureEvent(existing)) {
-          existing.status = 'pendente';
-        }
-      }
-    } else {
-      const newEv = {
-        id: 'ev-' + Date.now(),
-        title,
-        categoryId,
-        date,
-        startTime,
-        endTime,
-        status: 'pendente',
-        recurrence,
-        isCompensated: false
-      };
-      AppState.events.push(newEv);
-    }
-
-    AppState.enforceTemporalConsistency();
-    AppState.save();
-    this.closeAllModals();
-    UIRenderer.renderAll();
-  },
-
-  openDeleteConfirm(ev) {
-    document.getElementById('modal-event').classList.add('hidden');
-    const isRecurring = ev.recurrence && ev.recurrence !== 'none';
-    document.getElementById('delete-confirm-text').textContent = isRecurring
-      ? `Este compromisso faz parte de uma recorrência. Como deseja excluir "${ev.title}"?`
-      : `Tem certeza que deseja excluir "${ev.title}"?`;
-
-    document.getElementById('recurring-delete-options').classList.toggle('hidden', !isRecurring);
-    document.getElementById('single-delete-options').classList.toggle('hidden', isRecurring);
-    document.getElementById('modal-delete-confirm').classList.remove('hidden');
-  },
-
-  openSettingsModal() {
-    this.renderCategoriesSettings();
-    document.getElementById('modal-settings').classList.remove('hidden');
-  },
-
-  renderCategoriesSettings() {
-    const list = document.getElementById('categories-list');
-    list.innerHTML = '';
-
-    AppState.categories.forEach(cat => {
-      const row = document.createElement('div');
-      row.className = 'category-row';
-
-      const optionsHtml = [
-        `<option value="" ${!cat.displaceTargetId ? 'selected' : ''}>Nenhum</option>`,
-        ...AppState.categories
-          .filter(other => other.id !== cat.id)
-          .map(other => `<option value="${other.id}" ${cat.displaceTargetId === other.id ? 'selected' : ''}>${other.name}</option>`)
-      ].join('');
-
-      row.innerHTML = `
-        <div class="category-info">
-          <span class="cat-dot" style="--cat-color: ${cat.color}"></span>
-          <span>${cat.name}</span>
-        </div>
-        <div class="category-target-wrap">
-          <span>Alvo:</span>
-          <select data-cat-id="${cat.id}" class="cat-target-select">
-            ${optionsHtml}
-          </select>
-        </div>
-      `;
-
-      row.querySelector('.cat-target-select').addEventListener('change', e => {
-        cat.displaceTargetId = e.target.value || null;
-        AppState.save();
-      });
-
-      list.appendChild(row);
-    });
-  },
-
-  closeAllModals() {
-    document.querySelectorAll('.modal-backdrop').forEach(m => m.classList.add('hidden'));
   }
-};
 
-document.addEventListener('DOMContentLoaded', () => AppController.init());
+  async init() {
+    this._registerServiceWorker();
+    await this.seedService.seedIfNeeded();
+
+    const settings = await this.repo.getSettings();
+    document.documentElement.setAttribute('data-theme', settings.theme || 'dark');
+
+    this._bindNavigation();
+    await this.refreshAll();
+
+    setInterval(async () => {
+      const updated = await this.lifecycleService.syncStatuses();
+      if (updated > 0) await this.refreshAll();
+    }, 60000);
+  }
+
+  _registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
+        console.warn('Service Worker não registrado:', err);
+      });
+    }
+  }
+
+  _bindNavigation() {
+    document.querySelectorAll('.nav-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.activeTab = btn.dataset.tab;
+        document.querySelectorAll('.nav-btn').forEach((b) => {
+          const isTarget = b.dataset.tab === this.activeTab;
+          b.classList.toggle('active', isTarget);
+          b.setAttribute('aria-selected', String(isTarget));
+        });
+
+        document.querySelectorAll('.view-section').forEach((sec) => {
+          sec.classList.toggle('hidden', sec.id !== `view-${this.activeTab}`);
+        });
+
+        this.refreshAll();
+      });
+    });
+  }
+
+  async refreshAll() {
+    await this.lifecycleService.syncStatuses();
+    await this._updateCompensationBadge();
+
+    if (this.activeTab === 'agenda') {
+      await this.agendaView.render();
+    } else if (this.activeTab === 'compensations') {
+      await this.compensationsView.render(this.agendaView.anchorDate);
+    } else if (this.activeTab === 'recurrences') {
+      await this.recurrencesView.render();
+    } else if (this.activeTab === 'settings') {
+      await this.settingsView.render();
+    }
+  }
+
+  async _updateCompensationBadge() {
+    const logs = await this.repo.getCompensationLogs();
+    const pendingCount = logs.filter((l) => l.status === 'pending_review').length;
+    const badge = document.getElementById('comp-badge');
+    if (pendingCount > 0) {
+      badge.textContent = String(pendingCount);
+      badge.classList.remove('hidden');
+    } else {
+      badge.classList.add('hidden');
+    }
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const app = new AppController();
+  app.init();
+});
