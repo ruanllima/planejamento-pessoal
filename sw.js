@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chronosshift-v1.1.0';
+const CACHE_NAME = 'chronosshift-v1.2.0';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -21,6 +21,7 @@ const STATIC_ASSETS = [
   './js/ui/RecurrencesView.js',
   './js/ui/SettingsView.js',
   './js/ui/ModalManager.js',
+  './js/ui/ToastManager.js',
   './icons/icon-192.svg',
   './icons/icon-512.svg'
 ];

@@ -95,7 +95,7 @@ export class CompensationEngine {
           displacedEvent: null,
           cascadeTargetSlot: null,
           cascadeSacrificedEvent: null,
-          summary: `${failedCat.name} (${formatDayShort(failedEvent.date)} • ${SHIFTS[failedEvent.shift.toUpperCase()].label}) não realizado → Realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) em horário livre.`
+          summary: `${failedCat.name} (${formatDayShort(failedEvent.date)}, ${SHIFTS[failedEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) em horário livre.`
         });
         continue;
       }
@@ -115,7 +115,7 @@ export class CompensationEngine {
         displacedEvent: occupant,
         cascadeTargetSlot: null,
         cascadeSacrificedEvent: null,
-        summary: `${failedCat.name} (${formatDayShort(failedEvent.date)} • ${SHIFTS[failedEvent.shift.toUpperCase()].label}) não realizado → Realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) substituindo "${occupant.title}" (${priorityIdx + 1}ª opção de troca).`
+        summary: `${failedCat.name} (${formatDayShort(failedEvent.date)}, ${SHIFTS[failedEvent.shift.toUpperCase()].label}) realocado para ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}) substituindo "${occupant.title}".`
       });
 
       if (occupantCat && occupantCat.is_compensable) {
@@ -135,7 +135,7 @@ export class CompensationEngine {
               displacedEvent: occupant,
               cascadeTargetSlot: secondarySlot,
               cascadeSacrificedEvent: null,
-              summary: `Efeito Dominó: ${failedCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), e "${occupant.title}" foi preservado e movido para ${formatDayShort(secondarySlot.date)} (${SHIFTS[secondarySlot.shift.toUpperCase()].label}) (horário livre).`
+              summary: `Efeito Dominó: ${failedCat.name} assumiu ${formatDayShort(slot.date)} (${SHIFTS[slot.shift.toUpperCase()].label}), e "${occupant.title}" foi movido para ${formatDayShort(secondarySlot.date)} (${SHIFTS[secondarySlot.shift.toUpperCase()].label}).`
             });
             break;
           } else if (secOccupant.category_id !== occupantCat.id && secOccupant.category_id !== failedCat.id) {
@@ -161,6 +161,42 @@ export class CompensationEngine {
     return plans.sort((a, b) => a.cost - b.cost);
   }
 
+  /**
+   * Alternância idempotente (Estado A <-> Estado B):
+   * - Se estiver REALIZADO ou PENDENTE -> marca NÃO REALIZADO e executa compensação (Estado B).
+   * - Se estiver NÃO REALIZADO -> reverte exatamente o log de compensação vinculado (se houver) e volta para REALIZADO (Estado A).
+   */
+  async toggleEventCompletionState(eventId) {
+    const allEvents = await this.repo.getEvents();
+    const targetEvent = allEvents.find((e) => e.id === eventId);
+    if (!targetEvent) throw new Error('Evento não encontrado.');
+
+    if (targetEvent.status === EVENT_STATUS.FAILED) {
+      const logs = await this.repo.getCompensationLogs();
+      const activeLog = logs.find(
+        (l) => l.failed_event_id === eventId && l.status !== 'reverted'
+      );
+
+      if (activeLog) {
+        await this.rollbackCompensation(activeLog.id);
+      }
+
+      const freshEvents = await this.repo.getEvents();
+      const freshTarget = freshEvents.find((e) => e.id === eventId) || targetEvent;
+
+      await this.repo.saveEvent({
+        ...freshTarget,
+        status: EVENT_STATUS.DONE,
+        manual_status_override: true
+      });
+
+      return { state: 'done', compensated: false };
+    }
+
+    const res = await this.markEventAsFailedAndCompensate(eventId);
+    return { state: 'failed', ...res };
+  }
+
   async markEventAsFailedAndCompensate(eventId) {
     const allEvents = await this.repo.getEvents();
     const targetEvent = allEvents.find((e) => e.id === eventId);
@@ -179,7 +215,7 @@ export class CompensationEngine {
     await this.repo.saveEvent(updatedFailedEvent);
 
     if (!failedCat || !failedCat.is_compensable) {
-      return { compensated: false, reason: 'Categoria configurada sem compensação automática.' };
+      return { compensated: false, reason: 'Categoria sem compensação automática.' };
     }
 
     const plans = await this.findBestPlans(
@@ -193,7 +229,7 @@ export class CompensationEngine {
       const log = createCompensationLog({
         failed_event_id: updatedFailedEvent.id,
         failed_category_id: failedCat.id,
-        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), mas não há turnos compatíveis disponíveis para compensação automática.`,
+        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), sem turnos compatíveis livres.`,
         snapshot_before: [targetEvent],
         status: 'pending_review'
       });

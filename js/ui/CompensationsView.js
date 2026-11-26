@@ -22,7 +22,7 @@ export class CompensationsView {
     this.container.innerHTML = `
       <header class="view-header">
         <div>
-          <h1 class="view-title">Compensações & Ajustes</h1>
+          <h1 class="view-title">Compensações e Ajustes</h1>
           <p class="view-subtitle">Auditoria do motor dinâmico e metas semanais por categoria</p>
         </div>
       </header>
@@ -36,7 +36,7 @@ export class CompensationsView {
             return `
               <div class="quota-card">
                 <div class="quota-header">
-                  <span style="color:${q.category.color};">● ${this._escape(q.category.name)}</span>
+                  <span style="color:${q.category.color};">${this._escape(q.category.name)}</span>
                   <span>${goalLabel}</span>
                 </div>
                 <div class="quota-bar-track">
@@ -60,7 +60,7 @@ export class CompensationsView {
     if (activeLogs.length === 0) {
       listEl.innerHTML = `
         <div class="panel-card" style="text-align:center; color:var(--text-secondary); padding:32px;">
-          Nenhuma compensação ativa no momento. Marque falha em qualquer compromisso da Agenda para acionar o motor.
+          Nenhuma compensação ativa no momento. Clique sobre um compromisso na Agenda para alternar para Não Realizado.
         </div>
       `;
       return;
@@ -73,7 +73,7 @@ export class CompensationsView {
       const chainHtml =
         log.chain_steps && log.chain_steps.length > 0
           ? `<div class="log-chain"><strong>Efeito Dominó Executado:</strong>${log.chain_steps
-              .map((s) => `<span>• ${this._escape(s)}</span>`)
+              .map((s) => `<span>${this._escape(s)}</span>`)
               .join('')}</div>`
           : '';
 
@@ -108,7 +108,7 @@ export class CompensationsView {
 
       card.querySelector('.btn-undo').addEventListener('click', async () => {
         await this.engine.rollbackCompensation(log.id);
-        this.showToast('Estado anterior restaurado com sucesso.');
+        this.showToast('Estado anterior restaurado.');
         await this.onStateChange();
       });
 
@@ -138,7 +138,7 @@ export class CompensationsView {
 
         item.innerHTML = `
           <div style="font-weight:700; font-size:0.875rem; margin-bottom:4px;">
-            ${formatDayShort(plan.targetSlot.date)} • ${shiftLabel}
+            ${formatDayShort(plan.targetSlot.date)} (${shiftLabel})
           </div>
           <div style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:10px;">
             ${this._escape(plan.summary)}

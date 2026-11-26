@@ -4,6 +4,7 @@ import { RecurrenceService } from './services/RecurrenceService.js';
 import { CompensationEngine } from './services/CompensationEngine.js';
 import { SeedService } from './services/SeedService.js';
 import { ModalManager } from './ui/ModalManager.js';
+import { ToastManager } from './ui/ToastManager.js';
 import { AgendaView } from './ui/AgendaView.js';
 import { CompensationsView } from './ui/CompensationsView.js';
 import { RecurrencesView } from './ui/RecurrencesView.js';
@@ -18,6 +19,7 @@ class AppController {
     this.compensationEngine = new CompensationEngine(this.repo);
     this.seedService = new SeedService(this.repo);
     this.modal = new ModalManager();
+    this.toast = new ToastManager('toast-container');
 
     this.activeTab = 'agenda';
 
@@ -28,7 +30,7 @@ class AppController {
       recurrenceService: this.recurrenceService,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.showToast(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
     this.compensationsView = new CompensationsView({
@@ -37,14 +39,14 @@ class AppController {
       compensationEngine: this.compensationEngine,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.showToast(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
     this.recurrencesView = new RecurrencesView({
       container: document.getElementById('view-recurrences'),
       repo: this.repo,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.showToast(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
 
     this.settingsView = new SettingsView({
@@ -52,7 +54,7 @@ class AppController {
       repo: this.repo,
       modal: this.modal,
       onStateChange: () => this.refreshAll(),
-      showToast: (msg, actionText, onAction) => this.showToast(msg, actionText, onAction)
+      showToast: (msg, actionText, onAction) => this.toast.show(msg, actionText, onAction)
     });
   }
 
@@ -124,31 +126,6 @@ class AppController {
     } else {
       badge.classList.add('hidden');
     }
-  }
-
-  showToast(message, actionLabel = null, onAction = null) {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = `<span>${message}</span>`;
-
-    if (actionLabel && onAction) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'btn btn-secondary';
-      btn.style.padding = '4px 10px';
-      btn.textContent = actionLabel;
-      btn.addEventListener('click', async () => {
-        toast.remove();
-        await onAction();
-      });
-      toast.appendChild(btn);
-    }
-
-    container.appendChild(toast);
-    setTimeout(() => {
-      if (toast.parentNode) toast.remove();
-    }, 5500);
   }
 }
 

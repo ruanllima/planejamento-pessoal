@@ -19,7 +19,7 @@ export class SettingsView {
     this.container.innerHTML = `
       <header class="view-header">
         <div>
-          <h1 class="view-title">Categorias & Ajustes</h1>
+          <h1 class="view-title">Categorias e Ajustes</h1>
           <p class="view-subtitle">Hierarquia de sacrifício, restrições de turno e preferências</p>
         </div>
         <button type="button" class="btn btn-primary" id="btn-new-cat">+ Nova Categoria</button>
@@ -31,7 +31,7 @@ export class SettingsView {
           <div class="field-group">
             <span class="field-label">Modo de Tempo</span>
             <div class="segmented-control">
-              <button type="button" class="seg-btn ${settings.time_mode === 'shifts' ? 'active' : ''}" data-tmode="shifts">Turnos (M/T/N)</button>
+              <button type="button" class="seg-btn ${settings.time_mode === 'shifts' ? 'active' : ''}" data-tmode="shifts">Turnos</button>
               <button type="button" class="seg-btn ${settings.time_mode === '24h' ? 'active' : ''}" data-tmode="24h">Horário 24h</button>
             </div>
           </div>
@@ -50,7 +50,7 @@ export class SettingsView {
       <div class="log-list" id="cat-list"></div>
 
       <div class="panel-card" style="margin-top:20px;">
-        <h2 class="field-label" style="margin-bottom:12px;">Portabilidade & Dados</h2>
+        <h2 class="field-label" style="margin-bottom:12px;">Portabilidade e Dados</h2>
         <div style="display:flex; flex-wrap:wrap; gap:8px;">
           <button type="button" class="btn btn-secondary" id="btn-export">Exportar Backup JSON</button>
           <label class="btn btn-secondary" style="cursor:pointer;">
@@ -70,26 +70,32 @@ export class SettingsView {
       const priorityStr =
         cat.substitution_priority.length > 0
           ? cat.substitution_priority
-              .map((id, idx) => `${idx + 1}º ${catMap.get(id)?.name || '?'}`)
-              .join(' → ')
-          : 'Nenhuma (não desloca outras categorias)';
+              .map((id) => catMap.get(id)?.name)
+              .filter(Boolean)
+              .join(', ')
+          : 'Nenhum (não desloca outras categorias)';
 
       const card = document.createElement('div');
-      card.className = 'panel-card';
-      card.style.marginBottom = '0';
-      card.style.borderLeft = `4px solid ${cat.color}`;
+      card.className = 'cat-struct-card';
+      card.style.setProperty('--cat-color', cat.color);
       card.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-          <div>
-            <div style="font-weight:700; font-size:1rem;">${this._escape(cat.name)}</div>
-            <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:4px;">
-              <strong>Meta:</strong> ${cat.weekly_goal ? `${cat.weekly_goal} turnos/sem` : 'Livre'} • <strong>Turnos permitidos:</strong> ${allowedStr}
-            </div>
-            <div style="font-size:0.78rem; color:var(--text-secondary); margin-top:2px;">
-              <strong>Alvos de troca:</strong> ${this._escape(priorityStr)}
-            </div>
-          </div>
+        <div class="cat-struct-top">
+          <span class="cat-struct-title">${this._escape(cat.name)}</span>
           <button type="button" class="btn btn-secondary btn-edit-cat">Configurar</button>
+        </div>
+        <div class="cat-struct-rows">
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Meta semanal</span>
+            <span class="cat-struct-val">${cat.weekly_goal ? `${cat.weekly_goal} turnos` : 'Livre'}</span>
+          </div>
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Turnos permitidos</span>
+            <span class="cat-struct-val">${allowedStr}</span>
+          </div>
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Alvos de troca</span>
+            <span class="cat-struct-val">${this._escape(priorityStr)}</span>
+          </div>
         </div>
       `;
 
@@ -176,7 +182,7 @@ export class SettingsView {
               const target = otherCats.find((c) => c.id === id);
               return `
                 <div class="priority-item">
-                  <span><strong>${idx + 1}º</strong> ${this._escape(target.name)}</span>
+                  <span>${this._escape(target.name)}</span>
                   <div class="priority-controls">
                     <button type="button" class="btn-icon btn-up" data-idx="${idx}" ${idx === 0 ? 'disabled' : ''}>↑</button>
                     <button type="button" class="btn-icon btn-down" data-idx="${idx}" ${idx === priorityIds.length - 1 ? 'disabled' : ''}>↓</button>
@@ -239,27 +245,27 @@ export class SettingsView {
           <input class="input-control" id="cat-name" type="text" required value="${this._escape(draft.name)}" placeholder="Ex: Academia" />
         </div>
         <div class="field-group">
-          <label class="field-label" for="cat-color">Cor (Hex)</label>
+          <label class="field-label" for="cat-color">Cor</label>
           <input class="input-control" id="cat-color" type="color" value="${draft.color}" style="height:42px; padding:4px;" />
         </div>
       </div>
 
       <div class="form-grid form-grid-2">
         <div class="field-group">
-          <label class="field-label" for="cat-goal">Meta Semanal de Turnos (Opcional)</label>
-          <input class="input-control" id="cat-goal" type="number" min="1" max="21" value="${draft.weekly_goal || ''}" placeholder="Ex: 4" />
+          <label class="field-label" for="cat-goal">Meta Semanal de Turnos</label>
+          <input class="input-control" id="cat-goal" type="number" min="1" max="21" value="${draft.weekly_goal || ''}" placeholder="Opcional" />
         </div>
         <div class="field-group">
           <label class="field-label" for="cat-comp">Compensação Automática</label>
           <select class="input-control" id="cat-comp">
-            <option value="true" ${draft.is_compensable ? 'selected' : ''}>Ativada (Recalcula se falhar)</option>
-            <option value="false" ${!draft.is_compensable ? 'selected' : ''}>Desativada (Flexível)</option>
+            <option value="true" ${draft.is_compensable ? 'selected' : ''}>Ativada</option>
+            <option value="false" ${!draft.is_compensable ? 'selected' : ''}>Desativada</option>
           </select>
         </div>
       </div>
 
       <div class="field-group">
-        <span class="field-label">Turnos Permitidos (Restrição Rígida)</span>
+        <span class="field-label">Turnos Permitidos</span>
         <div class="checkbox-pills" id="cat-shifts">
           ${SHIFT_ORDER.map((sId) => {
             const s = SHIFTS[sId.toUpperCase()];
@@ -270,7 +276,7 @@ export class SettingsView {
       </div>
 
       <div class="field-group">
-        <span class="field-label">Hierarquia de Substituição (Quem esta categoria pode sacrificar)</span>
+        <span class="field-label">Alvos de Substituição (Ordem de prioridade)</span>
         <div id="prio-editor"></div>
       </div>
 

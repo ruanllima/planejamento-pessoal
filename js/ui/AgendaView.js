@@ -12,10 +12,8 @@ import {
 } from '../domain/DateUtils.js';
 
 const ICONS = {
-  fail: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`,
-  done: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-  edit: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
-  remove: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+  edit: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`,
+  trash: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`
 };
 
 export class AgendaView {
@@ -96,7 +94,7 @@ export class AgendaView {
     }
     if (this.viewMode === 'week') {
       const week = getWeekDates(this.anchorDate);
-      return `${formatDayShort(week[0])} – ${formatDayShort(week[6])}`;
+      return `${formatDayShort(week[0])} a ${formatDayShort(week[6])}`;
     }
     return `${getMonthName(d.getMonth())} ${d.getFullYear()}`;
   }
@@ -290,39 +288,39 @@ export class AgendaView {
     card.className = 'event-card';
     card.dataset.status = ev.status;
     card.style.setProperty('--cat-color', color);
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
 
     const timeTag =
-      settings.time_mode === '24h' && ev.start_time ? ` • ${ev.start_time}` : '';
-
-    const isFailed = ev.status === EVENT_STATUS.FAILED;
+      settings.time_mode === '24h' && ev.start_time ? ` (${ev.start_time})` : '';
 
     card.innerHTML = `
       <div class="event-main">
         <div class="event-title">${this._escape(ev.title)}</div>
         <div class="event-meta">
-          <span style="color:${color}; font-weight:700;">● ${this._escape(catName)}${timeTag}</span>
+          <span class="cat-badge"><span class="cat-swatch"></span>${this._escape(catName)}${timeTag}</span>
           <span class="status-pill ${ev.status}">${statusLabels[ev.status]}</span>
         </div>
       </div>
       <div class="event-icon-actions">
-        <button type="button" class="icon-action-btn btn-fail ${isFailed ? 'is-failed' : ''}" aria-label="${isFailed ? 'Marcar como realizado' : 'Marcar como não realizado'}" title="${isFailed ? 'Realizado' : 'Não fiz'}">
-          ${isFailed ? ICONS.done : ICONS.fail}
-        </button>
-        <button type="button" class="icon-action-btn btn-edit" aria-label="Editar" title="Editar">
+        <button type="button" class="icon-action-btn btn-edit" aria-label="Editar">
           ${ICONS.edit}
         </button>
-        <button type="button" class="icon-action-btn btn-delete" aria-label="Excluir" title="Excluir">
-          ${ICONS.remove}
+        <button type="button" class="icon-action-btn btn-delete" aria-label="Excluir">
+          ${ICONS.trash}
         </button>
       </div>
     `;
 
-    card.querySelector('.btn-fail').addEventListener('click', async () => {
-      if (!isFailed) {
-        const result = await this.engine.markEventAsFailedAndCompensate(ev.id);
+    // Clique no próprio card alterna absolutamente entre Realizado (Estado A) e Não Realizado (Estado B)
+    card.addEventListener('click', async (e) => {
+      if (e.target.closest('.event-icon-actions')) return;
+
+      const result = await this.engine.toggleEventCompletionState(ev.id);
+      if (result.state === 'failed') {
         if (result.compensated && result.log) {
           this.showToast(
-            'Compensado automaticamente.',
+            'Não realizado. Compensado automaticamente.',
             'Desfazer',
             async () => {
               await this.engine.rollbackCompensation(result.log.id);
@@ -333,28 +331,85 @@ export class AgendaView {
           this.showToast('Marcado como não realizado.');
         }
       } else {
-        await this.repo.saveEvent({
-          ...ev,
-          status: EVENT_STATUS.DONE,
-          manual_status_override: true
-        });
         this.showToast('Marcado como realizado.');
       }
+
       await this.onStateChange();
     });
 
-    card.querySelector('.btn-edit').addEventListener('click', async () => {
+    card.querySelector('.btn-edit').addEventListener('click', async (e) => {
+      e.stopPropagation();
       const cats = await this.repo.getCategories();
       this._openQuickEventModal(ev, cats, settings);
     });
 
-    card.querySelector('.btn-delete').addEventListener('click', async () => {
-      await this.repo.deleteEvent(ev.id);
-      this.showToast('Compromisso excluído.');
-      await this.onStateChange();
+    card.querySelector('.btn-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this._confirmDeleteEvent(ev);
     });
 
     return card;
+  }
+
+  _confirmDeleteEvent(ev) {
+    const isRecurrent = Boolean(ev.recurrence_id);
+    const wrap = document.createElement('div');
+    wrap.className = 'form-grid';
+
+    if (isRecurrent) {
+      wrap.innerHTML = `
+        <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+          Deseja realmente excluir o compromisso recorrente <strong>${this._escape(ev.title)}</strong>?
+        </p>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
+          <button type="button" class="btn btn-danger" id="del-rec-one">Excluir apenas este</button>
+          <button type="button" class="btn btn-danger" id="del-rec-all">Excluir todos</button>
+          <button type="button" class="btn btn-secondary" id="del-rec-cancel">Cancelar</button>
+        </div>
+      `;
+
+      wrap.querySelector('#del-rec-cancel').addEventListener('click', () => this.modal.close());
+
+      wrap.querySelector('#del-rec-one').addEventListener('click', async () => {
+        const supKey = `${ev.date}::${ev.shift}::${ev.recurrence_id}`;
+        await this.repo.addSuppressedRecurrence(supKey);
+        await this.repo.deleteEvent(ev.id);
+        this.modal.close();
+        this.showToast('Ocorrência excluída.');
+        await this.onStateChange();
+      });
+
+      wrap.querySelector('#del-rec-all').addEventListener('click', async () => {
+        await this.repo.deleteEventsByRecurrenceId(ev.recurrence_id);
+        await this.repo.deleteRecurrence(ev.recurrence_id);
+        this.modal.close();
+        this.showToast('Todos os compromissos recorrentes excluídos.');
+        await this.onStateChange();
+      });
+
+      this.modal.open('Excluir compromisso recorrente', wrap);
+    } else {
+      wrap.innerHTML = `
+        <p style="font-size:0.9rem; color:var(--text-secondary); line-height:1.5;">
+          Deseja realmente excluir <strong>${this._escape(ev.title)}</strong>? Esta ação deixará o turno livre.
+        </p>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button type="button" class="btn btn-secondary" style="flex:1;" id="del-cancel">Cancelar</button>
+          <button type="button" class="btn btn-danger" style="flex:1;" id="del-confirm">Excluir</button>
+        </div>
+      `;
+
+      wrap.querySelector('#del-cancel').addEventListener('click', () => this.modal.close());
+
+      wrap.querySelector('#del-confirm').addEventListener('click', async () => {
+        await this.repo.deleteEvent(ev.id);
+        this.modal.close();
+        this.showToast('Compromisso excluído.');
+        await this.onStateChange();
+      });
+
+      this.modal.open('Confirmar exclusão', wrap);
+    }
   }
 
   _openDayQuickSheet(dateStr, dayEvents, categories, settings) {
@@ -382,17 +437,15 @@ export class AgendaView {
             </div>
             <div class="event-icon-actions">
               <button type="button" class="icon-action-btn btn-edit-quick" aria-label="Editar">${ICONS.edit}</button>
-              <button type="button" class="icon-action-btn btn-delete btn-del-quick" aria-label="Excluir">${ICONS.remove}</button>
+              <button type="button" class="icon-action-btn btn-delete btn-del-quick" aria-label="Excluir">${ICONS.trash}</button>
             </div>
           </div>
         `;
         row.querySelector('.btn-edit-quick').addEventListener('click', () => {
           this._openQuickEventModal(ev, categories, settings);
         });
-        row.querySelector('.btn-del-quick').addEventListener('click', async () => {
-          await this.repo.deleteEvent(ev.id);
-          this.modal.close();
-          await this.onStateChange();
+        row.querySelector('.btn-del-quick').addEventListener('click', () => {
+          this._confirmDeleteEvent(ev);
         });
       } else {
         row.innerHTML = `
@@ -518,7 +571,7 @@ export class AgendaView {
       await this.onStateChange();
     });
 
-    this.modal.open(`${formatDayShort(eventDraft.date || this.anchorDate)} • ${shiftLabel}`, form);
+    this.modal.open(`${formatDayShort(eventDraft.date || this.anchorDate)} (${shiftLabel})`, form);
   }
 
   _escape(str) {

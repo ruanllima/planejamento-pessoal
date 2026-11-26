@@ -50,7 +50,7 @@ export class RecurrencesView {
               </select>
             </div>
             <div class="field-group" id="rec-dom-group" style="display:none;">
-              <label class="field-label" for="rec-dom">Dia do Mês (1–31)</label>
+              <label class="field-label" for="rec-dom">Dia do Mês (1 a 31)</label>
               <input class="input-control" id="rec-dom" type="number" min="1" max="31" value="1" />
             </div>
           </div>
@@ -92,25 +92,34 @@ export class RecurrencesView {
         rec.frequency === 'weekly'
           ? rec.days_of_week.map((d) => DAYS_PT[d]).join(', ')
           : `Todo dia ${rec.day_of_month}`;
-      const shiftsLabel = rec.shifts.map((s) => SHIFTS[s.toUpperCase()].label).join(' + ');
+      const shiftsLabel = rec.shifts.map((s) => SHIFTS[s.toUpperCase()].label).join(', ');
 
       const item = document.createElement('div');
-      item.className = 'panel-card';
-      item.style.marginBottom = '0';
-      item.style.borderLeft = `4px solid ${cat ? cat.color : '#64748B'}`;
+      item.className = 'cat-struct-card';
+      item.style.setProperty('--cat-color', cat ? cat.color : '#64748B');
       item.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-          <div>
-            <div style="font-weight:700;">${this._escape(rec.title)}</div>
-            <div style="font-size:0.78rem; color:var(--text-secondary);">
-              ${cat ? cat.name : ''} • ${whenLabel} • ${shiftsLabel}
-            </div>
-          </div>
+        <div class="cat-struct-top">
+          <span class="cat-struct-title">${this._escape(rec.title)}</span>
           <button type="button" class="btn btn-danger btn-del-rec">Remover</button>
+        </div>
+        <div class="cat-struct-rows">
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Categoria</span>
+            <span class="cat-struct-val">${cat ? this._escape(cat.name) : ''}</span>
+          </div>
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Frequência</span>
+            <span class="cat-struct-val">${whenLabel}</span>
+          </div>
+          <div class="cat-struct-row">
+            <span class="cat-struct-key">Turnos</span>
+            <span class="cat-struct-val">${shiftsLabel}</span>
+          </div>
         </div>
       `;
 
       item.querySelector('.btn-del-rec').addEventListener('click', async () => {
+        await this.repo.deleteEventsByRecurrenceId(rec.id);
         await this.repo.deleteRecurrence(rec.id);
         this.showToast('Recorrência removida.');
         await this.onStateChange();
@@ -164,7 +173,7 @@ export class RecurrencesView {
       });
 
       await this.repo.saveRecurrence(rec);
-      this.showToast('Regra recorrente criada!');
+      this.showToast('Regra recorrente criada.');
       await this.onStateChange();
     });
   }

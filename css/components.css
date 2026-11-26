@@ -105,7 +105,7 @@
   background-color: var(--bg-elevated);
 }
 
-/* Visualização Semana — Grid vertical de 1 coluna, preenchimento máximo no eixo X */
+/* Visualização Semana — Grid 1 coluna com Header estrutural em faixa 100% width */
 .week-vertical-list {
   display: grid;
   grid-template-columns: 1fr;
@@ -118,10 +118,9 @@
   background-color: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: var(--space-4);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
 }
 
 .day-row-card.is-today {
@@ -129,11 +128,14 @@
 }
 
 .day-col-header {
+  width: 100%;
+  background-color: var(--bg-surface-header);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 11px var(--space-4);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border-subtle);
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 .day-name {
@@ -141,25 +143,30 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-secondary);
+  color: var(--text-primary);
 }
 
 .day-num {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   font-weight: 700;
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
 }
 
 .day-row-card.is-today .day-num {
   background-color: var(--accent-primary);
   color: var(--accent-primary-fg);
-  padding: 2px 10px;
-  border-radius: var(--radius-full);
+  border-color: var(--accent-primary);
 }
 
 .day-shifts-stack {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 .shift-slot {
@@ -197,7 +204,7 @@
   background-color: var(--bg-elevated);
 }
 
-/* Card de Evento Limpo & Minimalista */
+/* Card de Evento Interativo (Clique no card alterna Realizado <-> Não Realizado) */
 .event-card {
   position: relative;
   background-color: var(--bg-elevated);
@@ -209,7 +216,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.event-card:hover {
+  background-color: var(--bg-hover);
+}
+
+.event-card:active {
+  transform: scale(0.992);
 }
 
 .event-card[data-status="pendente"] {
@@ -228,7 +245,7 @@
 .event-main {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
   flex: 1;
 }
@@ -249,10 +266,27 @@
   color: var(--text-secondary);
 }
 
+.cat-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  color: var(--cat-color, var(--text-secondary));
+}
+
+.cat-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background-color: var(--cat-color, #64748B);
+  display: inline-block;
+  flex-shrink: 0;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 7px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
   font-size: 0.66rem;
   font-weight: 700;
@@ -273,7 +307,7 @@
   color: var(--status-failed);
 }
 
-/* Ações minimalistas somente com ícones */
+/* Apenas Editar e Excluir (Lixeira) lado a lado */
 .event-icon-actions {
   display: inline-flex;
   align-items: center;
@@ -282,8 +316,8 @@
 }
 
 .icon-action-btn {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -296,16 +330,6 @@
 .icon-action-btn:hover {
   background-color: var(--bg-surface);
   color: var(--text-primary);
-}
-
-.icon-action-btn.btn-fail:hover {
-  color: var(--status-failed);
-  background-color: var(--status-failed-bg);
-}
-
-.icon-action-btn.btn-fail.is-failed {
-  color: var(--status-done);
-  background-color: var(--status-done-bg);
 }
 
 .icon-action-btn.btn-delete:hover {
@@ -331,7 +355,7 @@
   gap: var(--space-3);
 }
 
-/* Visualização Mês (inalterada) */
+/* Visualização Mês */
 .month-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -396,7 +420,7 @@
   outline: 1.5px solid var(--status-failed);
 }
 
-/* Seletor Rápido de Categoria (Alocação 1-clique) */
+/* Seletor Rápido de Categoria */
 .quick-cat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -430,9 +454,61 @@
 .cat-dot {
   width: 10px;
   height: 10px;
-  border-radius: var(--radius-full);
+  border-radius: 3px;
   background-color: var(--cat-color);
   flex-shrink: 0;
+}
+
+/* Exibição Estrutural de Categorias em Ajustes */
+.cat-struct-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--cat-color, #64748B);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cat-struct-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cat-struct-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.cat-struct-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.cat-struct-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cat-struct-key {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.cat-struct-val {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 
 /* Compensações & Logs */
@@ -671,22 +747,21 @@
   font-weight: 700;
 }
 
-/* Toast */
-.toast-container {
+/* Pop-ups Sobrepostos (Deck / Pilha) com Gestos de Deslize */
+.toast-stack-host {
   position: fixed;
-  bottom: calc(74px + env(safe-area-inset-bottom));
+  bottom: calc(76px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 70;
   width: calc(100% - 32px);
-  max-width: 440px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  max-width: 420px;
+  height: 64px;
+  pointer-events: none;
 }
 
 @media (min-width: 840px) {
-  .toast-container {
+  .toast-stack-host {
     bottom: 24px;
     left: auto;
     right: 24px;
@@ -694,7 +769,9 @@
   }
 }
 
-.toast {
+.toast-card {
+  position: absolute;
+  inset: 0;
   background-color: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   color: var(--text-primary);
@@ -704,6 +781,43 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  gap: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+  transition: transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 220ms ease;
+}
+
+.toast-card:active {
+  cursor: grabbing;
+}
+
+.toast-card.is-dragging {
+  transition: none;
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.toast-count-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-primary-fg);
+  background-color: var(--accent-primary);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.toast-msg {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

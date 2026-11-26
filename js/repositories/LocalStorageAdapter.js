@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   CATEGORIES: 'chronos_categories_v1',
   EVENTS: 'chronos_events_v1',
   RECURRENCES: 'chronos_recurrences_v1',
+  SUPPRESSED_REC: 'chronos_suppressed_rec_v1',
   COMPENSATIONS: 'chronos_compensations_v1',
   SETTINGS: 'chronos_settings_v1'
 };
@@ -80,6 +81,11 @@ export class LocalStorageAdapter extends StorageRepository {
     this._write(STORAGE_KEYS.EVENTS, list);
   }
 
+  async deleteEventsByRecurrenceId(recurrenceId) {
+    const list = (await this.getEvents()).filter((e) => e.recurrence_id !== recurrenceId);
+    this._write(STORAGE_KEYS.EVENTS, list);
+  }
+
   async getRecurrences() {
     return this._read(STORAGE_KEYS.RECURRENCES, []);
   }
@@ -97,6 +103,18 @@ export class LocalStorageAdapter extends StorageRepository {
   async deleteRecurrence(id) {
     const list = (await this.getRecurrences()).filter((r) => r.id !== id);
     this._write(STORAGE_KEYS.RECURRENCES, list);
+  }
+
+  async getSuppressedRecurrences() {
+    return this._read(STORAGE_KEYS.SUPPRESSED_REC, []);
+  }
+
+  async addSuppressedRecurrence(key) {
+    const list = await this.getSuppressedRecurrences();
+    if (!list.includes(key)) {
+      list.push(key);
+      this._write(STORAGE_KEYS.SUPPRESSED_REC, list);
+    }
   }
 
   async getCompensationLogs() {
@@ -126,11 +144,12 @@ export class LocalStorageAdapter extends StorageRepository {
 
   async exportAll() {
     return {
-      version: 1,
+      version: 2,
       exported_at: nowISO(),
       categories: await this.getCategories(),
       events: await this.getEvents(),
       recurrences: await this.getRecurrences(),
+      suppressed_recurrences: await this.getSuppressedRecurrences(),
       compensations: await this.getCompensationLogs(),
       settings: await this.getSettings()
     };
@@ -143,6 +162,7 @@ export class LocalStorageAdapter extends StorageRepository {
     this._write(STORAGE_KEYS.CATEGORIES, payload.categories);
     this._write(STORAGE_KEYS.EVENTS, payload.events);
     this._write(STORAGE_KEYS.RECURRENCES, payload.recurrences || []);
+    this._write(STORAGE_KEYS.SUPPRESSED_REC, payload.suppressed_recurrences || []);
     this._write(STORAGE_KEYS.COMPENSATIONS, payload.compensations || []);
     if (payload.settings) {
       this._write(STORAGE_KEYS.SETTINGS, { ...DEFAULT_SETTINGS, ...payload.settings });

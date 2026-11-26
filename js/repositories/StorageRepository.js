@@ -12,6 +12,9 @@ export class StorageRepository {
   async saveRecurrence(recurrence) { throw new Error('Not implemented'); }
   async deleteRecurrence(id) { throw new Error('Not implemented'); }
 
+  async getSuppressedRecurrences() { throw new Error('Not implemented'); }
+  async addSuppressedRecurrence(key) { throw new Error('Not implemented'); }
+
   async getCompensationLogs() { throw new Error('Not implemented'); }
   async saveCompensationLog(log) { throw new Error('Not implemented'); }
 

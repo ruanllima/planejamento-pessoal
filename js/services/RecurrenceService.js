@@ -10,7 +10,12 @@ export class RecurrenceService {
     const recurrences = (await this.repo.getRecurrences()).filter((r) => r.active);
     if (recurrences.length === 0 || dateStrings.length === 0) return 0;
 
-    const events = await this.repo.getEvents();
+    const [events, suppressedList] = await Promise.all([
+      this.repo.getEvents(),
+      this.repo.getSuppressedRecurrences()
+    ]);
+
+    const suppressedSet = new Set(suppressedList);
     const existingKeys = new Set(
       events.map((e) => `${e.date}::${e.shift}::${e.recurrence_id || 'manual'}`)
     );
@@ -34,6 +39,7 @@ export class RecurrenceService {
           const recKey = `${dateStr}::${shift}::${rec.id}`;
           const slotKey = `${dateStr}::${shift}`;
 
+          if (suppressedSet.has(recKey)) continue;
           if (existingKeys.has(recKey) || occupiedSlots.has(slotKey)) continue;
 
           const newEv = createEvent({
