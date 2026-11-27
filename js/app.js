@@ -21,8 +21,8 @@ class ChronosShiftApp {
     this.activeTab = 'agenda';
 
     const onStateChange = () => this.refreshAll();
-    const showToast = (msg, actionLabel, onAction) =>
-      this.toast.show(msg, { actionLabel, onAction });
+    const showToast = (msg, actionLabel = null, onAction = null) =>
+      this.toast.show(msg, actionLabel, onAction);
 
     this.agendaView = new AgendaView({
       container: document.getElementById('view-agenda'),

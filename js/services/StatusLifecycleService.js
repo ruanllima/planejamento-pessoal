@@ -1,5 +1,5 @@
-import { EVENT_STATUS, SHIFTS } from '../domain/entities.js';
-import { isEventInFuture, toDateStr } from '../domain/DateUtils.js';
+import { EVENT_STATUS } from '../domain/entities.js';
+import { hasEventEnded, isEventInFuture } from '../domain/DateUtils.js';
 
 export class StatusLifecycleService {
   constructor(repository) {
@@ -7,13 +7,10 @@ export class StatusLifecycleService {
   }
 
   async syncStatuses(now = new Date()) {
-    const todayStr = toDateStr(now);
-    const currentHour = now.getHours();
     const events = await this.repo.getEvents();
     const changed = [];
 
     for (const ev of events) {
-      // Invariante rígido: compromisso futuro NUNCA pode estar como 'nao_realizado' (nem 'realizado' se ainda não iniciou)
       if (isEventInFuture(ev, now)) {
         if (ev.status === EVENT_STATUS.FAILED || ev.status === EVENT_STATUS.DONE) {
           changed.push({
@@ -28,14 +25,10 @@ export class StatusLifecycleService {
       if (ev.status !== EVENT_STATUS.PENDING) continue;
       if (ev.manual_status_override) continue;
 
-      const shiftMeta = Object.values(SHIFTS).find((s) => s.id === ev.shift) || SHIFTS.MORNING;
-      const hasStarted =
-        ev.date < todayStr || (ev.date === todayStr && currentHour >= shiftMeta.startHour);
-
-      if (hasStarted) {
+      if (hasEventEnded(ev, now)) {
         changed.push({
           ...ev,
-          status: EVENT_STATUS.DONE
+          status: EVENT_STATUS.FAILED
         });
       }
     }

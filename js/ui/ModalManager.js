@@ -5,6 +5,7 @@ export class ModalManager {
     this.bodyEl = document.getElementById('modal-body');
     this.closeBtn = document.getElementById('modal-close');
     this.appMain = document.getElementById('app-main');
+    this._previousFocus = null;
 
     this.closeBtn.addEventListener('click', () => this.close());
     this.backdrop.addEventListener('click', (e) => {
@@ -27,6 +28,7 @@ export class ModalManager {
   }
 
   open(title, contentNodeOrHTML) {
+    this._previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.titleEl.textContent = title;
     this.bodyEl.innerHTML = '';
     if (typeof contentNodeOrHTML === 'string') {
@@ -40,6 +42,13 @@ export class ModalManager {
 
     this.backdrop.classList.remove('hidden');
     this.backdrop.setAttribute('aria-hidden', 'false');
+
+    const focusable = this.bodyEl.querySelector('input, select, textarea, button');
+    if (focusable && typeof focusable.focus === 'function') {
+      focusable.focus();
+    } else if (this.closeBtn && typeof this.closeBtn.focus === 'function') {
+      this.closeBtn.focus();
+    }
   }
 
   close() {
@@ -50,5 +59,10 @@ export class ModalManager {
     document.documentElement.classList.remove('modal-open');
     document.body.classList.remove('modal-open');
     if (this.appMain) this.appMain.classList.remove('modal-open');
+
+    if (this._previousFocus && typeof this._previousFocus.focus === 'function') {
+      this._previousFocus.focus();
+      this._previousFocus = null;
+    }
   }
 }

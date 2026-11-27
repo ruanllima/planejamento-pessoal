@@ -2,10 +2,14 @@ import {
   createCompensationLog,
   createEvent,
   EVENT_STATUS,
+  generateUUID,
   SHIFT_ORDER,
   SHIFTS
 } from '../domain/entities.js';
 import { addDays, formatDayShort, getCurrentShiftId, getWeekDates, isEventInFuture, toDateStr } from '../domain/DateUtils.js';
+
+const MAX_CASCADE_DEPTH = 1;
+const MAX_PLANS_EVALUATED = 64;
 
 export class CompensationEngine {
   constructor(repository) {
@@ -85,7 +89,7 @@ export class CompensationEngine {
     return targets;
   }
 
-  async findBestPlans(sourceEvent, orderedCategories, allEvents, allowNextWeek = true) {
+  async findBestPlans(sourceEvent, orderedCategories, allEvents, allowNextWeek = true, now = new Date()) {
     const sourceCat = orderedCategories.find((c) => c.id === sourceEvent.category_id);
     if (!sourceCat || !sourceCat.is_relocatable) {
       return [];
@@ -94,7 +98,8 @@ export class CompensationEngine {
     const candidateSlots = this._buildCandidateSlots(
       sourceEvent.date,
       sourceEvent.shift,
-      allowNextWeek
+      allowNextWeek,
+      now
     );
 
     const eventBySlot = new Map();
@@ -108,14 +113,19 @@ export class CompensationEngine {
 
     const searchTargets = this._buildSearchTargetsForCategory(sourceCat, orderedCategories);
     const plans = [];
+    const visitedSlots = new Set([`${sourceEvent.date}::${sourceEvent.shift}`]);
 
     for (let tIdx = 0; tIdx < searchTargets.length; tIdx++) {
+      if (plans.length >= MAX_PLANS_EVALUATED) break;
       const target = searchTargets[tIdx];
 
       for (const slot of candidateSlots) {
+        if (plans.length >= MAX_PLANS_EVALUATED) break;
+        const slotKey = `${slot.date}::${slot.shift}`;
+        if (visitedSlots.has(slotKey)) continue;
         if (!sourceCat.allowed_shifts.includes(slot.shift)) continue;
 
-        const occupant = eventBySlot.get(`${slot.date}::${slot.shift}`);
+        const occupant = eventBySlot.get(slotKey);
 
         if (target.type === 'none') {
           if (!occupant) {
@@ -135,16 +145,17 @@ export class CompensationEngine {
 
           const occupantCat = target.category;
 
-          if (occupantCat.is_relocatable) {
+          if (occupantCat.is_relocatable && MAX_CASCADE_DEPTH >= 1) {
             const subTargets = this._buildSearchTargetsForCategory(occupantCat, orderedCategories);
             let chained = false;
 
             for (const subTarget of subTargets) {
               for (const secSlot of candidateSlots) {
-                if (secSlot.date === slot.date && secSlot.shift === slot.shift) continue;
+                const secKey = `${secSlot.date}::${secSlot.shift}`;
+                if (secKey === slotKey || visitedSlots.has(secKey)) continue;
                 if (!occupantCat.allowed_shifts.includes(secSlot.shift)) continue;
 
-                const secOccupant = eventBySlot.get(`${secSlot.date}::${secSlot.shift}`);
+                const secOccupant = eventBySlot.get(secKey);
 
                 if (subTarget.type === 'none' && !secOccupant) {
                   plans.push({
@@ -163,7 +174,8 @@ export class CompensationEngine {
                   secOccupant &&
                   secOccupant.category_id === subTarget.category.id &&
                   secOccupant.category_id !== occupantCat.id &&
-                  secOccupant.category_id !== sourceCat.id
+                  secOccupant.category_id !== sourceCat.id &&
+                  secOccupant.id !== occupant.id
                 ) {
                   plans.push({
                     cost: plans.length,
@@ -218,6 +230,14 @@ export class CompensationEngine {
       return { compensated: false, reason: 'Categoria deslocada não é realocável automaticamente.' };
     }
 
+    const existingLogs = await this.repo.getCompensationLogs();
+    const activeLog = existingLogs.find(
+      (l) => l.failed_event_id === displacedEvent.id && l.status !== 'reverted'
+    );
+    if (activeLog) {
+      return { compensated: false, log: activeLog, idempotent: true };
+    }
+
     const settings = await this.repo.getSettings();
     const allEvents = await this.repo.getEvents();
 
@@ -234,12 +254,12 @@ export class CompensationEngine {
       const log = createCompensationLog({
         failed_event_id: displacedEvent.id,
         failed_category_id: displacedCat.id,
-        reason_human: `${reasonPrefix} Nenhum turno compatível inferior disponível — meta ficou com déficit.`,
+        reason_human: `${reasonPrefix} Sem slot compatível disponível na janela configurada (déficit registrado).`,
         snapshot_before: [displacedEvent],
         status: 'pending_review'
       });
       await this.repo.saveCompensationLog(log);
-      return { compensated: false, log };
+      return { compensated: false, noPlan: true, log };
     }
 
     const bestPlan = {
@@ -314,7 +334,7 @@ export class CompensationEngine {
       (l) => l.failed_event_id === eventId && l.status !== 'reverted'
     );
     if (alreadyCompensated) {
-      return { compensated: false, log: alreadyCompensated };
+      return { compensated: false, log: alreadyCompensated, idempotent: true };
     }
 
     const refreshedEvents = await this.repo.getEvents();
@@ -329,12 +349,12 @@ export class CompensationEngine {
       const log = createCompensationLog({
         failed_event_id: updatedFailedEvent.id,
         failed_category_id: failedCat.id,
-        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), sem turnos compatíveis disponíveis.`,
+        reason_human: `Falha registrada em "${updatedFailedEvent.title}" (${formatDayShort(updatedFailedEvent.date)}), sem turno compatível disponível (déficit explícito).`,
         snapshot_before: [targetEvent],
         status: 'pending_review'
       });
       await this.repo.saveCompensationLog(log);
-      return { compensated: false, log };
+      return { compensated: false, noPlan: true, log };
     }
 
     const bestPlan = plans[0];
@@ -342,16 +362,14 @@ export class CompensationEngine {
   }
 
   async _applyPlan(sourceEvent, originalSnapshot, plan, { markSourceAsFailed = true } = {}) {
+    const operationId = generateUUID();
     const snapshotBefore = markSourceAsFailed ? [originalSnapshot] : [];
     const eventsToSave = [];
     const createdIds = [];
+    const afterSignatures = {};
     const chainSteps = [];
 
-    const logId = createCompensationLog({
-      failed_event_id: sourceEvent.id,
-      failed_category_id: sourceEvent.category_id,
-      reason_human: plan.summary
-    }).id;
+    const logId = generateUUID();
 
     const currentEvents = await this.repo.getEvents();
     const slotCollision = currentEvents.find(
@@ -377,17 +395,20 @@ export class CompensationEngine {
     });
     eventsToSave.push(relocatedEvent);
     createdIds.push(relocatedEvent.id);
+    afterSignatures[relocatedEvent.id] = `${relocatedEvent.date}::${relocatedEvent.shift}::${relocatedEvent.status}::${relocatedEvent.title}`;
 
     if (plan.displacedEvent) {
       snapshotBefore.push({ ...plan.displacedEvent });
 
       if (plan.type === 'direct_replace') {
-        eventsToSave.push({
+        const replacedEv = {
           ...plan.displacedEvent,
           status: EVENT_STATUS.FAILED,
           manual_status_override: true,
           notes: `Substituído por realocação de ${sourceEvent.title}`
-        });
+        };
+        eventsToSave.push(replacedEv);
+        afterSignatures[replacedEv.id] = `${replacedEv.date}::${replacedEv.shift}::${replacedEv.status}::${replacedEv.title}`;
         chainSteps.push(`Substituiu "${plan.displacedEvent.title}"`);
       } else if (plan.type === 'cascade_to_empty' || plan.type === 'cascade_replace') {
         const movedTarget = {
@@ -404,18 +425,21 @@ export class CompensationEngine {
           movedTarget.manual_status_override = false;
         }
         eventsToSave.push(movedTarget);
+        afterSignatures[movedTarget.id] = `${movedTarget.date}::${movedTarget.shift}::${movedTarget.status}::${movedTarget.title}`;
         chainSteps.push(
           `Moveu "${plan.displacedEvent.title}" para ${formatDayShort(plan.cascadeTargetSlot.date)}`
         );
 
         if (plan.cascadeSacrificedEvent) {
           snapshotBefore.push({ ...plan.cascadeSacrificedEvent });
-          eventsToSave.push({
+          const sacrificedEv = {
             ...plan.cascadeSacrificedEvent,
             status: EVENT_STATUS.FAILED,
             manual_status_override: true,
             notes: `Sacrificado em cadeia por ${plan.displacedEvent.title}`
-          });
+          };
+          eventsToSave.push(sacrificedEv);
+          afterSignatures[sacrificedEv.id] = `${sacrificedEv.date}::${sacrificedEv.shift}::${sacrificedEv.status}::${sacrificedEv.title}`;
           chainSteps.push(`Sacrificou "${plan.cascadeSacrificedEvent.title}"`);
         }
       }
@@ -423,47 +447,102 @@ export class CompensationEngine {
 
     await this.repo.saveEventsBulk(eventsToSave);
 
-    const log = createCompensationLog({
-      id: logId,
-      failed_event_id: sourceEvent.id,
-      failed_category_id: sourceEvent.category_id,
-      reason_human: plan.summary,
-      chain_steps: chainSteps,
-      snapshot_before: snapshotBefore,
-      created_event_ids: createdIds,
-      status: 'pending_review'
-    });
+    const log = {
+      ...createCompensationLog({
+        id: logId,
+        failed_event_id: sourceEvent.id,
+        failed_category_id: sourceEvent.category_id,
+        reason_human: plan.summary,
+        chain_steps: chainSteps,
+        snapshot_before: snapshotBefore,
+        created_event_ids: createdIds,
+        status: 'pending_review'
+      }),
+      operation_id: operationId,
+      engine_version: '1.1.0',
+      after_signatures: afterSignatures
+    };
 
     await this.repo.saveCompensationLog(log);
     return { compensated: true, log, alternatives: [] };
   }
 
-  async rollbackCompensation(logId) {
+  async rollbackCompensation(logId, { forceOverwrite = false } = {}) {
     const logs = await this.repo.getCompensationLogs();
     const log = logs.find((l) => l.id === logId);
-    if (!log || log.status === 'reverted') return;
+    if (!log || log.status === 'reverted') {
+      return { reverted: false, reason: 'already_reverted' };
+    }
+
+    const currentEvents = await this.repo.getEvents();
+    const currentById = new Map(currentEvents.map((e) => [e.id, e]));
+    const afterSigs = log.after_signatures || {};
+    const modifiedAfterIds = [];
 
     for (const createdId of log.created_event_ids || []) {
+      const cur = currentById.get(createdId);
+      if (cur && afterSigs[createdId]) {
+        const curSig = `${cur.date}::${cur.shift}::${cur.status}::${cur.title}`;
+        if (curSig !== afterSigs[createdId]) {
+          modifiedAfterIds.push(createdId);
+        }
+      }
+    }
+
+    for (const snapEv of log.snapshot_before || []) {
+      if (snapEv.id === log.failed_event_id) continue;
+      const cur = currentById.get(snapEv.id);
+      if (cur && afterSigs[snapEv.id]) {
+        const curSig = `${cur.date}::${cur.shift}::${cur.status}::${cur.title}`;
+        if (curSig !== afterSigs[snapEv.id]) {
+          modifiedAfterIds.push(snapEv.id);
+        }
+      }
+    }
+
+    if (modifiedAfterIds.length > 0 && !forceOverwrite) {
+      return {
+        reverted: false,
+        conflict: true,
+        modified_event_ids: modifiedAfterIds,
+        reason: 'Eventos desta compensação foram alterados após a aplicação.'
+      };
+    }
+
+    for (const createdId of log.created_event_ids || []) {
+      if (modifiedAfterIds.includes(createdId) && !forceOverwrite) continue;
       await this.repo.deleteEvent(createdId);
     }
 
     if (log.snapshot_before && log.snapshot_before.length > 0) {
-      await this.repo.saveEventsBulk(log.snapshot_before);
+      const safeSnapshots = log.snapshot_before.filter(
+        (snapEv) => snapEv.id === log.failed_event_id || !modifiedAfterIds.includes(snapEv.id) || forceOverwrite
+      );
+      if (safeSnapshots.length > 0) {
+        await this.repo.saveEventsBulk(safeSnapshots);
+      }
     }
 
     await this.repo.saveCompensationLog({
       ...log,
       status: 'reverted'
     });
+
+    return { reverted: true, conflict: false, modified_event_ids: modifiedAfterIds };
   }
 
   async rollbackAllActive() {
     const logs = await this.repo.getCompensationLogs();
     const active = logs.filter((l) => l.status !== 'reverted');
+    let revertedCount = 0;
+    const conflicted = [];
+
     for (const log of active) {
-      await this.rollbackCompensation(log.id);
+      const res = await this.rollbackCompensation(log.id);
+      if (res.reverted) revertedCount++;
+      else if (res.conflict) conflicted.push(log.id);
     }
-    return active.length;
+    return { count: revertedCount, conflicted };
   }
 
   async confirmCompensation(logId) {
