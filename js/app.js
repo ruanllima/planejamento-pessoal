@@ -9,7 +9,7 @@ import { SettingsView } from './ui/SettingsView.js';
 import { ModalManager } from './ui/ModalManager.js';
 import { ToastManager } from './ui/ToastManager.js';
 
-class ChronosShiftApp {
+class RitmApp {
   constructor() {
     this.repo = new LocalStorageAdapter();
     this.recurrenceService = new RecurrenceService(this.repo);
@@ -141,6 +141,6 @@ class ChronosShiftApp {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  const app = new ChronosShiftApp();
+  const app = new RitmApp();
   app.init();
 });

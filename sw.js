@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chronosshift-v1.7.0';
+const CACHE_NAME = 'ritm-v1.8.0';
 const STATIC_ASSETS = [
   './',
   './index.html',

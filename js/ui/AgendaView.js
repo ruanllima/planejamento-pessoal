@@ -284,26 +284,30 @@ export class AgendaView {
     const summaryHtml =
       activeMonthDays.length > 0
         ? `
-      <section class="month-summary-card" aria-label="Resumo dos dias com compromissos">
-        <span class="month-legend-title">Resumo do Mês</span>
+      <section class="month-summary-card" aria-label="Dias com compromissos no mês">
         <div class="month-summary-list">
           ${activeMonthDays
             .map(({ cell, dayEvents }) => {
+              const isToday = cell.dateStr === todayStr;
+              const weekdayAbbr = getWeekdayLabel(cell.dateStr);
               const colsHtml = SHIFT_ORDER.map((shiftId) => {
                 const ev = dayEvents.find((e) => e.shift === shiftId);
                 if (!ev) {
-                  return `<span class="month-summary-slot is-empty">—</span>`;
+                  return `<span class="month-summary-slot is-empty" aria-hidden="true"></span>`;
                 }
                 const cat = catMap.get(ev.category_id);
                 const color = cat ? cat.color : '#64748B';
                 const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
                 const isFailed = ev.status === EVENT_STATUS.FAILED && !isEventInFuture(ev);
-                return `<span class="month-summary-slot ${isFailed ? 'is-failed' : ''}" style="--cat-color:${color};" title="${this._escape(cleanTitle)}">${this._escape(cleanTitle)}</span>`;
+                return `<span class="month-summary-slot ${isFailed ? 'is-failed' : ''}" style="--cat-color:${color};" title="${SHIFTS[shiftId.toUpperCase()].label}: ${this._escape(cleanTitle)}">${this._escape(cleanTitle)}</span>`;
               }).join('');
 
               return `
-                <div class="month-summary-row" data-date="${cell.dateStr}">
-                  <span class="month-summary-day">${formatDayMonth(cell.dateStr)}</span>
+                <div class="month-summary-row ${isToday ? 'is-today' : ''}" data-date="${cell.dateStr}">
+                  <div class="month-summary-date-col">
+                    <span class="month-summary-weekday">${weekdayAbbr}</span>
+                    <span class="month-summary-daynum ${isToday ? 'is-today' : ''}">${cell.dayNum}</span>
+                  </div>
                   <div class="month-summary-cols">${colsHtml}</div>
                 </div>
               `;

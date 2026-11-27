@@ -20,7 +20,7 @@ function createMemoryStorageMock() {
 
 const { LocalStorageAdapter } = await import('../js/repositories/LocalStorageAdapter.js');
 
-describe('Auditoria ChronosShift / Ritmo — Testes Unitarios, Integracao e Regressao', () => {
+describe('Auditoria Ritm — Testes Unitarios, Integracao e Regressao', () => {
   let store;
   let repo;
 

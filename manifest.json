@@ -1,6 +1,6 @@
 {
-  "name": "ChronosShift — Agenda Adaptativa",
-  "short_name": "ChronosShift",
+  "name": "Ritm — Agenda Adaptativa",
+  "short_name": "Ritm",
   "description": "PWA de agenda e gestão de rotina com Motor de Compensação Automática de Turnos.",
   "start_url": "./index.html",
   "display": "standalone",
