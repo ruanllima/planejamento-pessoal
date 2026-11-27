@@ -82,7 +82,7 @@ export class CompensationsView {
     if (activeLogs.length === 0) {
       listEl.innerHTML = `
         <div class="panel-card" style="text-align:center; color:var(--text-secondary); padding:32px;">
-          Nenhuma compensação ativa no momento. Clique sobre um compromisso na Agenda para alternar para Não Realizado.
+          Nenhuma compensação ativa no momento.
         </div>
       `;
       return;
