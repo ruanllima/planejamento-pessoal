@@ -71,7 +71,16 @@
   --accent-secondary: #2563EB;
   --accent-secondary-fg: #FFFFFF;
 
-  --shadow-sheet: 0 -8px 30px rgba(0, 0, 0, 0.55);
+    --shadow-sheet: 0 -8px 30px rgba(0, 0, 0, 0.55);
+
+  /* Liquid Glass — camadas flutuantes de navegação e controle */
+  --lg-surface: rgba(24, 28, 36, 0.58);
+  --lg-surface-elevated: rgba(31, 37, 48, 0.66);
+  --lg-pill-active: rgba(248, 250, 252, 0.14);
+  --lg-border-outer: rgba(255, 255, 255, 0.14);
+  --lg-specular-top: rgba(255, 255, 255, 0.34);
+  --lg-specular-side: rgba(255, 255, 255, 0.10);
+  --lg-shadow: 0 12px 32px rgba(0, 0, 0, 0.48), 0 2px 6px rgba(0, 0, 0, 0.30);
 }
 
 [data-theme="light"] {
@@ -114,5 +123,14 @@
   --accent-secondary: #1D4ED8;
   --accent-secondary-fg: #FFFFFF;
 
-  --shadow-sheet: 0 -8px 30px rgba(15, 23, 42, 0.12);
+    --shadow-sheet: 0 -8px 30px rgba(15, 23, 42, 0.12);
+
+  /* Liquid Glass — camadas flutuantes de navegação e controle */
+  --lg-surface: rgba(255, 255, 255, 0.62);
+  --lg-surface-elevated: rgba(255, 255, 255, 0.74);
+  --lg-pill-active: rgba(15, 23, 42, 0.08);
+  --lg-border-outer: rgba(15, 23, 42, 0.11);
+  --lg-specular-top: rgba(255, 255, 255, 0.92);
+  --lg-specular-side: rgba(255, 255, 255, 0.55);
+  --lg-shadow: 0 12px 30px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
 }

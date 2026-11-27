@@ -19,6 +19,17 @@
   <link rel="stylesheet" href="./css/components.css" />
 </head>
 <body>
+    <!-- Filtro óptico SVG de refração líquida para camadas flutuantes (Liquid Glass) -->
+  <svg width="0" height="0" style="position:fixed;pointer-events:none;opacity:0" aria-hidden="true">
+    <defs>
+      <filter id="ritm-liquid-refraction" x="-12%" y="-12%" width="124%" height="124%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.014 0.022" numOctaves="2" seed="7" result="liquidNoise" />
+        <feGaussianBlur in="liquidNoise" stdDeviation="1.8" result="smoothMap" />
+        <feDisplacementMap in="SourceGraphic" in2="smoothMap" scale="5" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </defs>
+  </svg>
+
   <div class="app-shell">
     <nav class="app-nav" aria-label="Navegação Principal">
       <div class="nav-brand">

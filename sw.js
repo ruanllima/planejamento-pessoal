@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ritm-v1.8.0';
+const CACHE_NAME = 'ritm-v1.9.0-liquid-glass';
 const STATIC_ASSETS = [
   './',
   './index.html',

@@ -71,6 +71,7 @@ class RitmApp {
     await this.lifecycleService.syncStatuses();
 
     this._bindNavigation();
+    this._bindLiquidGlassSpecular();
     this._registerServiceWorker();
     await this.refreshAll();
 
@@ -78,6 +79,31 @@ class RitmApp {
       const changed = await this.lifecycleService.syncStatuses();
       if (changed > 0) await this.refreshAll();
     }, 60 * 1000);
+  }
+
+  _bindLiquidGlassSpecular() {
+    const updateGlassPointer = (clientX, clientY, target) => {
+      const surface = target?.closest?.('.app-nav, .modal-sheet, .toast-card, .segmented-control');
+      if (!surface) return;
+      const rect = surface.getBoundingClientRect();
+      const x = ((clientX - rect.left) / Math.max(rect.width, 1)) * 100;
+      const y = ((clientY - rect.top) / Math.max(rect.height, 1)) * 100;
+      surface.style.setProperty('--lg-pointer-x', `${x.toFixed(1)}%`);
+      surface.style.setProperty('--lg-pointer-y', `${y.toFixed(1)}%`);
+      surface.style.setProperty('--lg-pointer-active', '1');
+    };
+
+    document.addEventListener(
+      'pointermove',
+      (e) => updateGlassPointer(e.clientX, e.clientY, e.target),
+      { passive: true }
+    );
+
+    document.addEventListener(
+      'pointerdown',
+      (e) => updateGlassPointer(e.clientX, e.clientY, e.target),
+      { passive: true }
+    );
   }
 
   _bindNavigation() {
