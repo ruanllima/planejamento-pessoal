@@ -285,21 +285,30 @@ export class AgendaView {
       activeMonthDays.length > 0
         ? `
       <section class="month-summary-card" aria-label="Dias com compromissos no mês">
+        <div class="month-summary-header-row" aria-hidden="true">
+          <span></span>
+          <div class="month-summary-shift-labels">
+            <span>Manhã</span>
+            <span>Tarde</span>
+            <span>Noite</span>
+          </div>
+        </div>
         <div class="month-summary-list">
           ${activeMonthDays
             .map(({ cell, dayEvents }) => {
               const isToday = cell.dateStr === todayStr;
               const weekdayAbbr = getWeekdayLabel(cell.dateStr);
               const colsHtml = SHIFT_ORDER.map((shiftId) => {
+                const shiftMeta = SHIFTS[shiftId.toUpperCase()];
                 const ev = dayEvents.find((e) => e.shift === shiftId);
                 if (!ev) {
-                  return `<span class="month-summary-slot is-empty" aria-hidden="true"></span>`;
+                  return `<span class="month-summary-slot is-empty" aria-label="${shiftMeta.label}: Livre">${shiftMeta.label}</span>`;
                 }
                 const cat = catMap.get(ev.category_id);
                 const color = cat ? cat.color : '#64748B';
                 const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
                 const isFailed = ev.status === EVENT_STATUS.FAILED && !isEventInFuture(ev);
-                return `<span class="month-summary-slot ${isFailed ? 'is-failed' : ''}" style="--cat-color:${color};" title="${SHIFTS[shiftId.toUpperCase()].label}: ${this._escape(cleanTitle)}">${this._escape(cleanTitle)}</span>`;
+                return `<span class="month-summary-slot ${isFailed ? 'is-failed' : ''}" style="--cat-color:${color};" title="${shiftMeta.label}: ${this._escape(cleanTitle)}">${this._escape(cleanTitle)}</span>`;
               }).join('');
 
               return `
