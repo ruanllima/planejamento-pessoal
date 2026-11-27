@@ -1,4 +1,55 @@
 import { createCategory, SHIFT_ORDER, SHIFTS } from '../domain/entities.js';
+import { sanitizeHexColor } from '../domain/DateUtils.js';
+
+export const CATEGORY_COLOR_PALETTE = Object.freeze([
+  '#16A34A', '#22C55E', '#34D399', '#3B82F6',
+  '#2563EB', '#7C3AED', '#EC4899', '#DC2626',
+  '#86EFAC', '#A7F3D0', '#BFDBFE', '#93C5FD',
+  '#C4B5FD', '#F0ABFC', '#F9A8D4', '#FCA5A5'
+]);
+
+function hexToHsv(hex) {
+  const clean = sanitizeHexColor(hex, '#3B82F6').replace('#', '');
+  const full = clean.length === 3
+    ? clean.split('').map((ch) => ch + ch).join('')
+    : clean;
+  const r = parseInt(full.slice(0, 2), 16) / 255;
+  const g = parseInt(full.slice(2, 4), 16) / 255;
+  const b = parseInt(full.slice(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+
+  return { h: Math.round(h * 360), s, v };
+}
+
+function hsvToHex(h, s, v) {
+  const hue = ((h % 360) + 360) % 360;
+  const c = v * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = v - c;
+
+  let r1 = 0, g1 = 0, b1 = 0;
+  if (hue < 60) { r1 = c; g1 = x; b1 = 0; }
+  else if (hue < 120) { r1 = x; g1 = c; b1 = 0; }
+  else if (hue < 180) { r1 = 0; g1 = c; b1 = x; }
+  else if (hue < 240) { r1 = 0; g1 = x; b1 = c; }
+  else if (hue < 300) { r1 = x; g1 = 0; b1 = c; }
+  else { r1 = c; g1 = 0; b1 = x; }
+
+  const toHex = (n) => Math.round((n + m) * 255).toString(16).padStart(2, '0').toUpperCase();
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
+}
 
 export class SettingsView {
   constructor({ container, repo, modal, onStateChange, showToast }) {
@@ -22,6 +73,7 @@ export class SettingsView {
       <header class="view-header">
         <div>
           <h1 class="view-title">Categorias e Ajustes</h1>
+          <p class="view-subtitle">Lista global de prioridade, turnos permitidos e regras de realocação</p>
         </div>
         <button type="button" class="btn btn-primary" id="btn-new-cat">+ Nova Categoria</button>
       </header>
@@ -49,13 +101,16 @@ export class SettingsView {
 
       <div class="panel-card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;">
-          <h2 class="field-label" style="margin:0;">Hierarquia de Realocação</h2>
+          <h2 class="field-label" style="margin:0;">Lista Global de Busca e Prioridade</h2>
           ${
             availableForGlobal.length > 0
               ? `<button type="button" class="btn-icon" id="btn-add-to-global" title="Adicionar categoria à lista global" aria-label="Adicionar categoria à lista global">+</button>`
               : ''
           }
         </div>
+        <p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:12px;">
+          Apenas categorias nesta lista podem ser substituídas ao realocar (do menor peso para o maior). Categorias fora da lista não são sacrificáveis.
+        </p>
         <div class="priority-list" id="global-priority-list">
           <div class="priority-item" style="opacity:0.75;">
             <span><strong>1.</strong> Turno vazio (none)</span>
@@ -67,7 +122,7 @@ export class SettingsView {
               <div class="priority-item">
                 <span style="display:inline-flex; align-items:center; gap:8px;">
                   <strong>${idx + 2}.</strong>
-                  <span class="cat-dot" style="--cat-color:${cat.color};"></span>
+                  <span class="cat-dot" style="--cat-color:${sanitizeHexColor(cat.color)};"></span>
                   <span>${this._escape(cat.name)}</span>
                 </span>
                 <div class="priority-controls">
@@ -107,7 +162,7 @@ export class SettingsView {
 
       const card = document.createElement('div');
       card.className = 'cat-struct-card';
-      card.style.setProperty('--cat-color', cat.color);
+      card.style.setProperty('--cat-color', sanitizeHexColor(cat.color));
       card.innerHTML = `
         <div class="cat-struct-top">
           <span class="cat-struct-title">${this._escape(cat.name)}</span>
@@ -277,7 +332,7 @@ export class SettingsView {
             (cat) => `
             <button type="button" class="priority-item" data-pick-id="${cat.id}" style="width:100%; text-align:left; cursor:pointer;">
               <span style="display:inline-flex; align-items:center; gap:8px;">
-                <span class="cat-dot" style="--cat-color:${cat.color};"></span>
+                <span class="cat-dot" style="--cat-color:${sanitizeHexColor(cat.color)};"></span>
                 <span>${this._escape(cat.name)}</span>
               </span>
               <span style="font-size:0.75rem; color:var(--text-muted);">+ Adicionar</span>
@@ -326,20 +381,73 @@ export class SettingsView {
         in_global_list: false
       });
 
+    const initialColor = sanitizeHexColor(draft.color, '#3B82F6').toUpperCase();
     const initialGoal = draft.weekly_goal ? Number(draft.weekly_goal) : 0;
 
     const form = document.createElement('form');
     form.className = 'form-grid';
 
     form.innerHTML = `
-      <div class="form-grid form-grid-2">
-        <div class="field-group">
-          <label class="field-label" for="cat-name">Nome da Categoria</label>
-          <input class="input-control" id="cat-name" type="text" required value="${this._escape(draft.name)}" placeholder="Ex: Academia" />
+      <div class="field-group">
+        <label class="field-label" for="cat-name">Nome da Categoria</label>
+        <input class="input-control" id="cat-name" type="text" required value="${this._escape(draft.name)}" placeholder="Ex: Academia" />
+      </div>
+
+      <div class="field-group">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <label class="field-label" for="cat-color-hex" style="margin:0;">Cor da Categoria</label>
+          <span class="color-preview-pill" id="cat-color-badge">
+            <span class="color-preview-dot" id="cat-color-dot" style="background:${initialColor};"></span>
+            <code id="cat-color-code">${initialColor}</code>
+          </span>
         </div>
-        <div class="field-group">
-          <label class="field-label" for="cat-color">Cor</label>
-          <input class="input-control" id="cat-color" type="color" value="${draft.color}" style="height:42px; padding:4px;" />
+
+        <input type="hidden" id="cat-color" value="${initialColor}" />
+
+        <div class="color-swatch-grid-4x4" id="cat-swatch-grid" role="radiogroup" aria-label="Paleta padrão de cores">
+          ${CATEGORY_COLOR_PALETTE.map((hex) => {
+            const selected = hex.toUpperCase() === initialColor;
+            return `
+              <button
+                type="button"
+                class="color-swatch-tile ${selected ? 'selected' : ''}"
+                data-color="${hex}"
+                style="--tile-color:${hex};"
+                role="radio"
+                aria-checked="${selected}"
+                aria-label="Cor ${hex}"
+                title="${hex}"
+              ></button>
+            `;
+          }).join('')}
+        </div>
+
+        <div class="universal-color-picker" id="universal-color-picker">
+          <div class="ucp-sv-board" id="ucp-sv-board" role="slider" tabindex="0" aria-label="Saturação e brilho da cor">
+            <div class="ucp-sv-white"></div>
+            <div class="ucp-sv-black"></div>
+            <span class="ucp-sv-thumb" id="ucp-sv-thumb"></span>
+          </div>
+          <div class="ucp-controls-row">
+            <input
+              type="range"
+              class="ucp-hue-slider"
+              id="ucp-hue-slider"
+              min="0"
+              max="359"
+              value="217"
+              aria-label="Matiz (Hue)"
+            />
+            <input
+              type="text"
+              class="input-control ucp-hex-input"
+              id="cat-color-hex"
+              maxlength="7"
+              value="${initialColor}"
+              aria-label="Código hexadecimal da cor"
+              placeholder="#3B82F6"
+            />
+          </div>
         </div>
       </div>
 
@@ -388,6 +496,8 @@ export class SettingsView {
       </div>
     `;
 
+    this._bindColorPicker(form, initialColor);
+
     const goalInput = form.querySelector('#cat-goal');
     const clampGoal = (n) => Math.max(0, Math.min(21, n));
 
@@ -432,11 +542,12 @@ export class SettingsView {
 
       const rawGoal = parseInt(goalInput.value || '0', 10) || 0;
       const weekly_goal = rawGoal > 0 ? rawGoal : null;
+      const chosenColor = sanitizeHexColor(form.querySelector('#cat-color').value, '#3B82F6').toUpperCase();
 
       const saved = createCategory({
         ...draft,
         name: form.querySelector('#cat-name').value,
-        color: form.querySelector('#cat-color').value,
+        color: chosenColor,
         weekly_goal,
         is_relocatable: form.querySelector('#cat-reloc').value === 'true',
         in_global_list: isEdit ? Boolean(draft.in_global_list) : false,
@@ -485,6 +596,108 @@ export class SettingsView {
     }
 
     this.modal.open(isEdit ? `Configurar: ${draft.name}` : 'Nova Categoria', form);
+  }
+
+  _bindColorPicker(form, initialColor) {
+    const hiddenInput = form.querySelector('#cat-color');
+    const hexInput = form.querySelector('#cat-color-hex');
+    const colorDot = form.querySelector('#cat-color-dot');
+    const colorCode = form.querySelector('#cat-color-code');
+    const svBoard = form.querySelector('#ucp-sv-board');
+    const svThumb = form.querySelector('#ucp-sv-thumb');
+    const hueSlider = form.querySelector('#ucp-hue-slider');
+    const swatchTiles = Array.from(form.querySelectorAll('.color-swatch-tile'));
+
+    let hsv = hexToHsv(initialColor);
+
+    const syncUI = (hexValue, { updateHueSlider = true, updateHexInput = true } = {}) => {
+      const normalized = sanitizeHexColor(hexValue, '#3B82F6').toUpperCase();
+      hiddenInput.value = normalized;
+      colorDot.style.background = normalized;
+      colorCode.textContent = normalized;
+      if (updateHexInput) hexInput.value = normalized;
+
+      svBoard.style.backgroundColor = `hsl(${hsv.h}, 100%, 50%)`;
+      svThumb.style.left = `${Math.round(hsv.s * 100)}%`;
+      svThumb.style.top = `${Math.round((1 - hsv.v) * 100)}%`;
+      svThumb.style.backgroundColor = normalized;
+
+      if (updateHueSlider) {
+        hueSlider.value = String(hsv.h);
+      }
+
+      swatchTiles.forEach((tile) => {
+        const isMatch = tile.dataset.color.toUpperCase() === normalized;
+        tile.classList.toggle('selected', isMatch);
+        tile.setAttribute('aria-checked', String(isMatch));
+      });
+    };
+
+    syncUI(initialColor);
+
+    swatchTiles.forEach((tile) => {
+      tile.addEventListener('click', () => {
+        const picked = tile.dataset.color.toUpperCase();
+        hsv = hexToHsv(picked);
+        syncUI(picked);
+      });
+    });
+
+    hueSlider.addEventListener('input', () => {
+      hsv.h = Number(hueSlider.value) || 0;
+      const nextHex = hsvToHex(hsv.h, hsv.s, hsv.v);
+      syncUI(nextHex, { updateHueSlider: false });
+    });
+
+    const updateFromBoardPointer = (clientX, clientY) => {
+      const rect = svBoard.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const clampedX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+      const clampedY = Math.max(0, Math.min(rect.height, clientY - rect.top));
+      hsv.s = clampedX / rect.width;
+      hsv.v = 1 - clampedY / rect.height;
+      const nextHex = hsvToHex(hsv.h, hsv.s, hsv.v);
+      syncUI(nextHex, { updateHueSlider: false });
+    };
+
+    let draggingBoard = false;
+    svBoard.addEventListener('pointerdown', (e) => {
+      draggingBoard = true;
+      svBoard.setPointerCapture(e.pointerId);
+      updateFromBoardPointer(e.clientX, e.clientY);
+    });
+    svBoard.addEventListener('pointermove', (e) => {
+      if (!draggingBoard) return;
+      updateFromBoardPointer(e.clientX, e.clientY);
+    });
+    const stopBoardDrag = () => { draggingBoard = false; };
+    svBoard.addEventListener('pointerup', stopBoardDrag);
+    svBoard.addEventListener('pointercancel', stopBoardDrag);
+
+    svBoard.addEventListener('keydown', (e) => {
+      const step = 0.05;
+      if (e.key === 'ArrowRight') hsv.s = Math.min(1, hsv.s + step);
+      else if (e.key === 'ArrowLeft') hsv.s = Math.max(0, hsv.s - step);
+      else if (e.key === 'ArrowUp') hsv.v = Math.min(1, hsv.v + step);
+      else if (e.key === 'ArrowDown') hsv.v = Math.max(0, hsv.v - step);
+      else return;
+      e.preventDefault();
+      syncUI(hsvToHex(hsv.h, hsv.s, hsv.v), { updateHueSlider: false });
+    });
+
+    hexInput.addEventListener('input', () => {
+      let raw = hexInput.value.trim();
+      if (raw && !raw.startsWith('#')) raw = `#${raw}`;
+      if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw)) {
+        const normalized = sanitizeHexColor(raw).toUpperCase();
+        hsv = hexToHsv(normalized);
+        syncUI(normalized, { updateHexInput: false });
+      }
+    });
+
+    hexInput.addEventListener('blur', () => {
+      hexInput.value = hiddenInput.value;
+    });
   }
 
   _escape(str) {
