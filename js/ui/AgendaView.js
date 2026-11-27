@@ -269,16 +269,54 @@ export class AgendaView {
     container.appendChild(list);
   }
 
-  _renderMonthView(container, events, categories, catMap, settings, todayStr) {
+ _renderMonthView(container, events, categories, catMap, settings, todayStr) {
     const d = parseDateStr(this.anchorDate);
     const cells = getMonthGridDates(d.getFullYear(), d.getMonth());
 
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = `
-      <div class="month-weekdays">
-        <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
-      </div>
-      <div class="month-grid"></div>
+    const activeMonthDays = cells
+      .filter((c) => c.isCurrentMonth)
+      .map((c) => {
+        const dayEvents = events.filter((e) => e.date === c.dateStr);
+        return { cell: c, dayEvents };
+      })
+      .filter((entry) => entry.dayEvents.length > 0);
+
+    const summaryHtml =
+      activeMonthDays.length > 0
+        ? `
+      <section class="month-summary-card" aria-label="Resumo dos dias com compromissos">
+        <span class="month-legend-title">Resumo do Mês</span>
+        <div class="month-summary-list">
+          ${activeMonthDays
+            .map(({ cell, dayEvents }) => {
+              const colsHtml = SHIFT_ORDER.map((shiftId) => {
+                const ev = dayEvents.find((e) => e.shift === shiftId);
+                if (!ev) {
+                  return `<span class="month-summary-slot is-empty">—</span>`;
+                }
+                const cat = catMap.get(ev.category_id);
+                const color = cat ? cat.color : '#64748B';
+                const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
+                const isFailed = ev.status === EVENT_STATUS.FAILED && !isEventInFuture(ev);
+                return `<span class="month-summary-slot ${isFailed ? 'is-failed' : ''}" style="--cat-color:${color};" title="${this._escape(cleanTitle)}">${this._escape(cleanTitle)}</span>`;
+              }).join('');
+
+              return `
+                <div class="month-summary-row" data-date="${cell.dateStr}">
+                  <span class="month-summary-day">${formatDayMonth(cell.dateStr)}</span>
+                  <div class="month-summary-cols">${colsHtml}</div>
+                </div>
+              `;
+            })
+            .join('')}
+        </div>
+      </section>
+    `
+        : '';
+
+    const legendHtml =
+      categories.length > 0
+        ? `
       <section class="month-legend-card" aria-label="Legenda de categorias">
         <span class="month-legend-title">Categorias</span>
         <div class="month-legend-items">
@@ -294,6 +332,17 @@ export class AgendaView {
             .join('')}
         </div>
       </section>
+    `
+        : '';
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+      <div class="month-weekdays">
+        <div>Dom</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div>
+      </div>
+      <div class="month-grid"></div>
+      ${summaryHtml}
+      ${legendHtml}
     `;
 
     const grid = wrapper.querySelector('.month-grid');
@@ -305,18 +354,27 @@ export class AgendaView {
       btn.type = 'button';
       btn.className = `month-cell ${cell.isCurrentMonth ? '' : 'other-month'} ${isToday ? 'is-today' : ''}`;
 
-      const barsHtml = SHIFT_ORDER.map((shiftId) => {
+      const slotsHtml = SHIFT_ORDER.map((shiftId, rowIdx) => {
         const ev = dayEvents.find((e) => e.shift === shiftId);
-        if (!ev) return '';
+        if (!ev) {
+          return `<span class="month-shift-slot is-empty" style="grid-row:${rowIdx + 1};"></span>`;
+        }
         const cat = catMap.get(ev.category_id);
         const color = cat ? cat.color : '#64748B';
+        const cleanTitle = ev.title.replace(/\s*\(Compensação\)/gi, '').trim();
         const isFailed = ev.status === EVENT_STATUS.FAILED && !isEventInFuture(ev);
-        return `<span class="month-dot-bar ${isFailed ? 'failed' : ''}" style="--cat-color:${color}" title="${ev.title}"></span>`;
+        return `
+          <span
+            class="month-shift-slot ${isFailed ? 'failed' : ''}"
+            style="grid-row:${rowIdx + 1}; --cat-color:${color};"
+            title="${SHIFTS[shiftId.toUpperCase()].label}: ${this._escape(cleanTitle)}"
+          >${this._escape(cleanTitle)}</span>
+        `;
       }).join('');
 
       btn.innerHTML = `
         <span class="month-cell-num ${isToday ? 'is-today' : 'is-other'}">${cell.dayNum}</span>
-        <div class="month-dots">${barsHtml}</div>
+        <div class="month-dots">${slotsHtml}</div>
       `;
 
       btn.addEventListener('click', async () => {
@@ -326,6 +384,15 @@ export class AgendaView {
 
       grid.appendChild(btn);
     }
+
+    wrapper.querySelectorAll('.month-summary-row').forEach((row) => {
+      row.addEventListener('click', async () => {
+        const dateStr = row.dataset.date;
+        const dayEvents = events.filter((e) => e.date === dateStr);
+        const cats = await this.repo.getCategories();
+        this._openDayQuickSheet(dateStr, dayEvents, cats, settings);
+      });
+    });
 
     container.appendChild(wrapper);
   }
