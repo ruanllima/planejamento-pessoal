@@ -24,7 +24,6 @@ export class CompensationsView {
       <header class="view-header">
         <div>
           <h1 class="view-title">Compensações e Ajustes</h1>
-          <p class="view-subtitle">Auditoria do motor dinâmico e metas semanais por categoria</p>
         </div>
       </header>
 

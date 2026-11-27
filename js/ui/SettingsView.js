@@ -422,7 +422,26 @@ export class SettingsView {
           }).join('')}
         </div>
 
-        <div class="universal-color-picker" id="universal-color-picker">
+        <button
+          type="button"
+          class="custom-color-toggle-btn"
+          id="btn-toggle-custom-color"
+          aria-expanded="false"
+          aria-controls="universal-color-picker"
+        >
+          <span class="custom-color-toggle-left">
+            <span class="custom-color-wheel-icon" aria-hidden="true"></span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m2 22 1-1h3l9-9" />
+              <path d="M3 21v-3l9-9" />
+              <path d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z" />
+            </svg>
+            <span>Cor personalizada</span>
+          </span>
+          <span class="custom-color-chevron" aria-hidden="true">▾</span>
+        </button>
+
+        <div class="universal-color-picker hidden" id="universal-color-picker">
           <div class="ucp-sv-board" id="ucp-sv-board" role="slider" tabindex="0" aria-label="Saturação e brilho da cor">
             <div class="ucp-sv-white"></div>
             <div class="ucp-sv-black"></div>
@@ -697,6 +716,27 @@ export class SettingsView {
 
     hexInput.addEventListener('blur', () => {
       hexInput.value = hiddenInput.value;
+    });
+
+    const toggleCustomBtn = form.querySelector('#btn-toggle-custom-color');
+    const universalPicker = form.querySelector('#universal-color-picker');
+    const isCustomInitial = !CATEGORY_COLOR_PALETTE.some(
+      (hex) => hex.toUpperCase() === initialColor
+    );
+
+    const setCustomPickerOpen = (open) => {
+      universalPicker.classList.toggle('hidden', !open);
+      toggleCustomBtn.classList.toggle('active', open);
+      toggleCustomBtn.setAttribute('aria-expanded', String(open));
+    };
+
+    if (isCustomInitial) {
+      setCustomPickerOpen(true);
+    }
+
+    toggleCustomBtn.addEventListener('click', () => {
+      const willOpen = universalPicker.classList.contains('hidden');
+      setCustomPickerOpen(willOpen);
     });
   }
 
