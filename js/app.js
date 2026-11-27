@@ -68,14 +68,14 @@ class ChronosShiftApp {
     document.documentElement.setAttribute('data-theme', settings.theme || 'dark');
 
     await this.recurrenceService.enforceSingleEventPerSlot();
-    await this.lifecycleService.syncAutomaticStatuses();
+    await this.lifecycleService.syncStatuses();
 
     this._bindNavigation();
     this._registerServiceWorker();
     await this.refreshAll();
 
     setInterval(async () => {
-      const changed = await this.lifecycleService.syncAutomaticStatuses();
+      const changed = await this.lifecycleService.syncStatuses();
       if (changed > 0) await this.refreshAll();
     }, 60 * 1000);
   }

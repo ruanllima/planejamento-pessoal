@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = {
   time_mode: 'shifts',
   theme: 'dark',
   allow_next_week_spillover: true,
-  seeded: false
+  seeded: true
 };
 
 export class LocalStorageAdapter extends StorageRepository {
