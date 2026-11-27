@@ -23,7 +23,6 @@ export class RecurrencesView {
       <header class="view-header">
         <div>
           <h1 class="view-title">Recorrências</h1>
-          <p class="view-subtitle">Padrões semanais ou mensais aplicados dinamicamente sem duplicar dados</p>
         </div>
       </header>
 
@@ -47,8 +46,8 @@ export class RecurrencesView {
             <div class="field-group">
               <label class="field-label" for="rec-freq">Frequência</label>
               <select class="input-control" id="rec-freq">
-                <option value="weekly">Semanal (Dias da semana)</option>
-                <option value="monthly">Mensal (Dia fixo do mês)</option>
+                <option value="weekly">Semanal</option>
+                <option value="monthly">Mensal</option>
               </select>
             </div>
             <div class="field-group" id="rec-dom-group" style="display:none;">

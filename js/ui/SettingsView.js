@@ -22,7 +22,6 @@ export class SettingsView {
       <header class="view-header">
         <div>
           <h1 class="view-title">Categorias e Ajustes</h1>
-          <p class="view-subtitle">Lista global de prioridade, turnos permitidos e regras de realocação</p>
         </div>
         <button type="button" class="btn btn-primary" id="btn-new-cat">+ Nova Categoria</button>
       </header>
@@ -50,16 +49,13 @@ export class SettingsView {
 
       <div class="panel-card">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px;">
-          <h2 class="field-label" style="margin:0;">Lista Global de Busca e Prioridade</h2>
+          <h2 class="field-label" style="margin:0;">Hierarquia de Realocação</h2>
           ${
             availableForGlobal.length > 0
               ? `<button type="button" class="btn-icon" id="btn-add-to-global" title="Adicionar categoria à lista global" aria-label="Adicionar categoria à lista global">+</button>`
               : ''
           }
         </div>
-        <p style="font-size:0.78rem; color:var(--text-secondary); margin-bottom:12px;">
-          Apenas categorias nesta lista podem ser substituídas ao realocar (do menor peso para o maior). Categorias fora da lista não são sacrificáveis.
-        </p>
         <div class="priority-list" id="global-priority-list">
           <div class="priority-item" style="opacity:0.75;">
             <span><strong>1.</strong> Turno vazio (none)</span>
