@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ritm-v1.9.1-month-summary';
+const CACHE_NAME = 'ritm-v2.0.0-ui-polish';
 const STATIC_ASSETS = [
   './',
   './index.html',

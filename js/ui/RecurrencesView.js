@@ -23,6 +23,7 @@ export class RecurrencesView {
       <header class="view-header">
         <div>
           <h1 class="view-title">Recorrências</h1>
+          <p class="view-subtitle">Padrões semanais ou mensais aplicados dinamicamente sem duplicar dados</p>
         </div>
       </header>
 
@@ -46,8 +47,8 @@ export class RecurrencesView {
             <div class="field-group">
               <label class="field-label" for="rec-freq">Frequência</label>
               <select class="input-control" id="rec-freq">
-                <option value="weekly">Semanal</option>
-                <option value="monthly">Mensal</option>
+                <option value="weekly">Semanal (Dias da semana)</option>
+                <option value="monthly">Mensal (Dia fixo do mês)</option>
               </select>
             </div>
             <div class="field-group" id="rec-dom-group" style="display:none;">
@@ -101,9 +102,11 @@ export class RecurrencesView {
       item.innerHTML = `
         <div class="cat-struct-top">
           <span class="cat-struct-title">${this._escape(rec.title)}</span>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; align-items:center; gap:6px;">
             <button type="button" class="btn btn-secondary btn-edit-rec">Editar</button>
-            <button type="button" class="btn btn-danger btn-del-rec">Remover</button>
+            <button type="button" class="icon-action-btn btn-delete btn-del-rec" aria-label="Remover recorrência" title="Remover">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            </button>
           </div>
         </div>
         <div class="cat-struct-rows">

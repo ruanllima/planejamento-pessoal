@@ -6,10 +6,21 @@ export class ModalManager {
     this.closeBtn = document.getElementById('modal-close');
     this.appMain = document.getElementById('app-main');
     this._previousFocus = null;
+    this._onDismiss = null;
 
-    this.closeBtn.addEventListener('click', () => this.close());
+    const handleDismiss = () => {
+      if (typeof this._onDismiss === 'function') {
+        const cb = this._onDismiss;
+        this._onDismiss = null;
+        cb();
+        return;
+      }
+      this.close();
+    };
+
+    this.closeBtn.addEventListener('click', handleDismiss);
     this.backdrop.addEventListener('click', (e) => {
-      if (e.target === this.backdrop) this.close();
+      if (e.target === this.backdrop) handleDismiss();
     });
     this.backdrop.addEventListener(
       'touchmove',
@@ -22,12 +33,13 @@ export class ModalManager {
     );
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !this.backdrop.classList.contains('hidden')) {
-        this.close();
+        handleDismiss();
       }
     });
   }
 
-  open(title, contentNodeOrHTML) {
+  open(title, contentNodeOrHTML, { onDismiss = null } = {}) {
+    this._onDismiss = onDismiss;
     this._previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.titleEl.textContent = title;
     this.bodyEl.innerHTML = '';
@@ -52,6 +64,7 @@ export class ModalManager {
   }
 
   close() {
+    this._onDismiss = null;
     this.backdrop.classList.add('hidden');
     this.backdrop.setAttribute('aria-hidden', 'true');
     this.bodyEl.innerHTML = '';

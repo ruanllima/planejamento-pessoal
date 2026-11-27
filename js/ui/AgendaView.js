@@ -30,8 +30,24 @@ export class AgendaView {
     this.showToast = showToast;
 
     this.viewMode = 'week';
+    this.lastNonMonthMode = 'week';
+    this._pendingSlideDir = null;
     this.anchorDate = toDateStr(new Date());
     this._scrollToTodayPending = false;
+  }
+
+  setViewMode(nextMode, { animate = true } = {}) {
+    if (nextMode === this.viewMode) return;
+    const order = { day: 0, week: 1, month: 2 };
+    if (animate && order[nextMode] !== undefined && order[this.viewMode] !== undefined) {
+      this._pendingSlideDir = order[nextMode] > order[this.viewMode] ? 'left' : 'right';
+    } else {
+      this._pendingSlideDir = null;
+    }
+    this.viewMode = nextMode;
+    if (nextMode !== 'month') {
+      this.lastNonMonthMode = nextMode;
+    }
   }
 
   async render() {
@@ -63,16 +79,16 @@ export class AgendaView {
         </div>
 
         <div class="agenda-controls-row">
-          <div class="date-nav">
-            <button class="btn-icon" id="nav-prev" aria-label="Período anterior">‹</button>
-            <button class="btn btn-secondary" id="nav-today">Hoje</button>
-            <button class="btn-icon" id="nav-next" aria-label="Próximo período">›</button>
+          <div class="segmented-control date-nav-capsule" role="group" aria-label="Navegação de período">
+            <button type="button" class="seg-btn seg-nav-arrow" id="nav-prev" aria-label="Período anterior">‹</button>
+            <button type="button" class="seg-btn seg-nav-today" id="nav-today">Hoje</button>
+            <button type="button" class="seg-btn seg-nav-arrow" id="nav-next" aria-label="Próximo período">›</button>
           </div>
 
           <div class="segmented-control" role="group" aria-label="Modo de visualização">
-            <button class="seg-btn ${this.viewMode === 'day' ? 'active' : ''}" data-mode="day">Dia</button>
-            <button class="seg-btn ${this.viewMode === 'week' ? 'active' : ''}" data-mode="week">Semana</button>
-            <button class="seg-btn ${this.viewMode === 'month' ? 'active' : ''}" data-mode="month">Mês</button>
+            <button type="button" class="seg-btn ${this.viewMode === 'day' ? 'active' : ''}" data-mode="day">Dia</button>
+            <button type="button" class="seg-btn ${this.viewMode === 'week' ? 'active' : ''}" data-mode="week">Semana</button>
+            <button type="button" class="seg-btn ${this.viewMode === 'month' ? 'active' : ''}" data-mode="month">Mês</button>
           </div>
         </div>
       </header>
@@ -83,6 +99,16 @@ export class AgendaView {
     this._bindHeaderEvents();
 
     const contentEl = this.container.querySelector('#agenda-content');
+    if (this._pendingSlideDir) {
+      const dirClass = this._pendingSlideDir === 'left' ? 'slide-enter-left' : 'slide-enter-right';
+      this._pendingSlideDir = null;
+      contentEl.classList.add(dirClass);
+      contentEl.addEventListener(
+        'animationend',
+        () => contentEl.classList.remove(dirClass),
+        { once: true }
+      );
+    }
     if (this.viewMode === 'day') {
       this._renderDayView(contentEl, this.anchorDate, events, catMap, settings);
     } else if (this.viewMode === 'week') {
@@ -139,10 +165,12 @@ export class AgendaView {
   }
 
   _bindHeaderEvents() {
-    this.container.querySelectorAll('.seg-btn').forEach((btn) => {
+    this.container.querySelectorAll('.seg-btn[data-mode]').forEach((btn) => {
       btn.addEventListener('click', () => {
-        this.viewMode = btn.dataset.mode;
-        this.render();
+        const nextMode = btn.dataset.mode;
+        if (nextMode === this.viewMode) return;
+        this.setViewMode(nextMode, { animate: true });
+        this.onStateChange();
       });
     });
 
@@ -285,14 +313,6 @@ export class AgendaView {
       activeMonthDays.length > 0
         ? `
       <section class="month-summary-card" aria-label="Dias com compromissos no mês">
-        <div class="month-summary-header-row" aria-hidden="true">
-          <span></span>
-          <div class="month-summary-shift-labels">
-            <span>Manhã</span>
-            <span>Tarde</span>
-            <span>Noite</span>
-          </div>
-        </div>
         <div class="month-summary-list">
           ${activeMonthDays
             .map(({ cell, dayEvents }) => {
@@ -302,7 +322,7 @@ export class AgendaView {
                 const shiftMeta = SHIFTS[shiftId.toUpperCase()];
                 const ev = dayEvents.find((e) => e.shift === shiftId);
                 if (!ev) {
-                  return `<span class="month-summary-slot is-empty" aria-label="${shiftMeta.label}: Livre">${shiftMeta.label}</span>`;
+                  return `<span class="month-summary-slot is-empty" aria-hidden="true"></span>`;
                 }
                 const cat = catMap.get(ev.category_id);
                 const color = cat ? cat.color : '#64748B';

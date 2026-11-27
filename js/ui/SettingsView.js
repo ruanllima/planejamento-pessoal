@@ -511,7 +511,13 @@ export class SettingsView {
 
       <div class="modal-footer-actions">
         <button type="submit" class="btn btn-primary" style="flex:1;">Salvar</button>
-        ${isEdit ? `<button type="button" class="btn btn-danger" id="btn-del-cat">Excluir</button>` : ''}
+        ${
+          isEdit
+            ? `<button type="button" class="btn btn-danger btn-icon-trash" id="btn-del-cat" aria-label="Excluir categoria" title="Excluir categoria">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              </button>`
+            : ''
+        }
       </div>
     `;
 
@@ -610,7 +616,9 @@ export class SettingsView {
           await this.onStateChange();
         });
 
-        this.modal.open('Confirmar exclusão de categoria', confirmWrap);
+        this.modal.open('Confirmar exclusão de categoria', confirmWrap, {
+          onDismiss: () => this._openCategoryModal(draft, allCategories)
+        });
       });
     }
 

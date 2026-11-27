@@ -70,12 +70,14 @@ class RitmApp {
     await this.recurrenceService.enforceSingleEventPerSlot();
     await this.lifecycleService.syncStatuses();
 
+    this._syncDynamicCalendarIcon();
     this._bindNavigation();
     this._bindLiquidGlassSpecular();
     this._registerServiceWorker();
     await this.refreshAll();
 
     setInterval(async () => {
+      this._syncDynamicCalendarIcon();
       const changed = await this.lifecycleService.syncStatuses();
       if (changed > 0) await this.refreshAll();
     }, 60 * 1000);
@@ -106,10 +108,46 @@ class RitmApp {
     );
   }
 
+  _syncDynamicCalendarIcon() {
+    const dayEl = document.getElementById('nav-cal-today-num');
+    if (dayEl) {
+      dayEl.textContent = String(new Date().getDate());
+    }
+  }
+
+  _syncNavActiveState() {
+    const isMonthView = this.activeTab === 'agenda' && this.agendaView.viewMode === 'month';
+    document.querySelectorAll('.nav-btn').forEach((btn) => {
+      const shortcut = btn.dataset.agendaShortcut;
+      let isSelected = false;
+      if (this.activeTab === 'agenda' && shortcut) {
+        isSelected = shortcut === 'month' ? isMonthView : !isMonthView;
+      } else if (!shortcut) {
+        isSelected = btn.dataset.tab === this.activeTab;
+      }
+      btn.classList.toggle('active', isSelected);
+      btn.setAttribute('aria-selected', String(isSelected));
+    });
+  }
+
   _bindNavigation() {
     document.querySelectorAll('.nav-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const targetTab = btn.dataset.tab;
+        const shortcut = btn.dataset.agendaShortcut;
+        if (targetTab === 'agenda' && shortcut) {
+          if (shortcut === 'month') {
+            this.agendaView.setViewMode('month', { animate: this.activeTab === 'agenda' });
+          } else {
+            const fallbackMode =
+              this.agendaView.lastNonMonthMode && this.agendaView.lastNonMonthMode !== 'month'
+                ? this.agendaView.lastNonMonthMode
+                : 'week';
+            if (this.agendaView.viewMode === 'month') {
+              this.agendaView.setViewMode(fallbackMode, { animate: this.activeTab === 'agenda' });
+            }
+          }
+        }
         this.switchTab(targetTab);
       });
     });
@@ -117,11 +155,7 @@ class RitmApp {
 
   switchTab(tabName) {
     this.activeTab = tabName;
-    document.querySelectorAll('.nav-btn').forEach((btn) => {
-      const isSelected = btn.dataset.tab === tabName;
-      btn.classList.toggle('active', isSelected);
-      btn.setAttribute('aria-selected', String(isSelected));
-    });
+    this._syncNavActiveState();
 
     document.querySelectorAll('.view-section').forEach((sec) => {
       sec.classList.toggle('hidden', sec.id !== `view-${tabName}`);
@@ -132,6 +166,7 @@ class RitmApp {
   }
 
   async refreshAll() {
+    this._syncNavActiveState();
     await this._updateCompensationBadge();
 
     if (this.activeTab === 'agenda') {
